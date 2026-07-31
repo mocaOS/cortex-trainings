@@ -1,11 +1,10 @@
 # Cortex Trainings
 
 Standalone web application that turns domain knowledge from a [Cortex](https://docs.cortex.eco)
-instance into interactive, offline-capable HTML training units — implementing the `/trainings`
-skill (see `SKILL.md`) with [Venice.ai](https://docs.venice.ai) as the AI provider.
+instance into interactive, offline-capable HTML training units, with
+[Venice.ai](https://docs.venice.ai) as the AI provider.
 
 - **Documentation:** [`docs/`](docs/) — start with [docs/README.md](docs/README.md)
-- **The skill this app implements:** `SKILL.md` (English) / `SKILL-german.md`
 - **Original service analysis:** `OVERVIEW.md`
 - **Repo guide for Claude Code:** `CLAUDE.md`
 
@@ -65,8 +64,12 @@ the artefacts are the point, so they stay diffable, recoverable, and inspectable
 
 ## Credits
 
-The idea for this comes from **Julian Ivanov**, whose skill and video
-[demonstrated the approach](https://youtu.be/gz0PBC2P9eg) — building a complete interactive
-learning unit as a single offline HTML file, with a curriculum written and approved before any
-expensive media is generated. `SKILL.md` is that skill; this repo turns it into a web app that
-sources its content from a knowledge base. Thanks, Julian.
+The idea for this comes from **Julian Ivanov**. His
+[video](https://youtu.be/gz0PBC2P9eg) demonstrated the approach — building a complete
+interactive learning unit as a single offline HTML file, with the curriculum written and
+approved before any expensive media is generated — and the skill itself lives in his
+[KI-Automatisierungs-Community](https://hub.ki-automatisierungs-community.de/).
+
+This repository is an independent implementation of that idea as a web application sourcing its
+content from a knowledge base. It is not a copy of his skill and uses a different toolchain, so
+the skill is linked rather than vendored — go to the source for the original. Thanks, Julian.

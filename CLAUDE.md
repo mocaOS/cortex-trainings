@@ -1,11 +1,17 @@
 # Cortex Trainings — repo guide
 
 Web app that turns knowledge-base content into interactive, offline-capable HTML training
-units. It implements the `/trainings` skill (`SKILL.md`) with Venice.ai as the sole AI provider
-and a Cortex instance as the domain-knowledge source.
+units, with Venice.ai as the sole AI provider and a Cortex instance as the domain-knowledge
+source.
 
-**`SKILL.md` is the binding spec.** When behaviour and spec disagree, the spec wins — or the
-spec gets changed deliberately. `SKILL-german.md` is the German edition of the same document.
+**`docs/` is the spec of record.** [docs/workflow.md](docs/workflow.md),
+[docs/production-pipeline.md](docs/production-pipeline.md) and
+[docs/training-format.md](docs/training-format.md) describe what this app actually does; when
+behaviour and docs disagree, fix one of them deliberately.
+
+The *idea* comes from Julian Ivanov's `/trainings` skill (see Credits in the README) — but that
+skill describes a different toolchain (Higgsfield/Seedance, HyperFrames, local Whisper) than
+this app uses, so do not treat it as a specification for this code.
 
 ## Commands
 

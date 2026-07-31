@@ -4,9 +4,9 @@ Cortex Trainings turns the knowledge already sitting in a Cortex instance into i
 training units: story-driven, gamified, voiced, and delivered as **a single HTML file** that
 runs offline on double-click and can be mailed, dropped in Drive, or uploaded to an LMS.
 
-It is a web-app implementation of the `/trainings` skill ([`../SKILL.md`](../SKILL.md), German
-edition [`../SKILL-german.md`](../SKILL-german.md)), with [Venice.ai](https://docs.venice.ai)
-as the sole AI provider.
+It uses [Venice.ai](https://docs.venice.ai) as its sole AI provider. The idea originates in
+Julian Ivanov's `/trainings` skill (see Credits in the [README](../README.md)); these documents
+describe what this application does, which differs from that skill's toolchain.
 
 ## Read in this order
 

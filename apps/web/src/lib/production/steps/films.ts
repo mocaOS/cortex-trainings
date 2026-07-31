@@ -90,6 +90,31 @@ async function toDataUrl(file: string): Promise<string> {
   return `data:image/jpeg;base64,${buf.toString('base64')}`;
 }
 
+/**
+ * A queued generation is already paid for, so the queue id is written to disk before
+ * polling starts. If the process dies mid-generation, a resume re-polls that job
+ * instead of queueing (and paying for) a second one. Venice download URLs expire
+ * after ~24h, so an older ticket is worthless and gets discarded.
+ */
+interface QueueTicket {
+  model: string;
+  queueId: string;
+  requestedAt: string;
+}
+
+const TICKET_MAX_AGE_MS = 20 * 60 * 60 * 1000;
+
+async function readTicket(file: string): Promise<QueueTicket | null> {
+  try {
+    const ticket = JSON.parse(await fs.readFile(file, 'utf8')) as QueueTicket;
+    const age = Date.now() - Date.parse(ticket.requestedAt);
+    if (!ticket.queueId || !Number.isFinite(age) || age > TICKET_MAX_AGE_MS) return null;
+    return ticket;
+  } catch {
+    return null;
+  }
+}
+
 export async function stepFilms(ctx: RunContext): Promise<void> {
   const plan = ctx.plan!;
   const media = getMedia();
@@ -119,34 +144,57 @@ export async function stepFilms(ctx: RunContext): Promise<void> {
 
     for (const job of jobs) {
       const clipFile = path.join(dir, `level${level.index}_shot${job.shotIndex + 1}.mp4`);
+      const ticketFile = `${clipFile}.queue.json`;
+      const label = `level ${level.index} shot ${job.shotIndex + 1}`;
       try {
         await fs.access(clipFile);
-        ctx.log('films', `level ${level.index} shot ${job.shotIndex + 1}: cached`);
+        ctx.log('films', `${label}: cached`);
       } catch {
         const isFirst = job.shotIndex === 0;
-        const prompt = isFirst
-          ? job.prompt
-          : `SHOT: continuing seamlessly from the start frame — ${job.prompt}`;
-        ctx.log('films', `level ${level.index} shot ${job.shotIndex + 1}: queueing (${job.model}, ${job.duration})`);
-        const { queueId } = await media.videoQueue({
-          model: job.model,
-          prompt,
-          duration: job.duration,
-          resolution: mediaModels.videoResolution,
-          ...(isFirst
-            ? { referenceImageUrls: [refUrl] }
-            : { imageUrl: lastFrameUrl ?? refUrl }),
-          negativePrompt: 'readable text, captions, subtitles, letters, logos, watermarks, speech',
-        });
+        let queueId: string;
+        let model = job.model;
+
+        const ticket = await readTicket(ticketFile);
+        if (ticket) {
+          queueId = ticket.queueId;
+          model = ticket.model;
+          ctx.log('films', `${label}: resuming queued job ${queueId} — not paying twice`);
+        } else {
+          const prompt = isFirst
+            ? job.prompt
+            : `SHOT: continuing seamlessly from the start frame — ${job.prompt}`;
+          ctx.log('films', `${label}: queueing (${job.model}, ${job.duration})`);
+          const queued = await media.videoQueue({
+            model: job.model,
+            prompt,
+            duration: job.duration,
+            resolution: mediaModels.videoResolution,
+            ...(isFirst
+              ? { referenceImageUrls: [refUrl] }
+              : { imageUrl: lastFrameUrl ?? refUrl }),
+            negativePrompt: 'readable text, captions, subtitles, letters, logos, watermarks, speech',
+          });
+          queueId = queued.queueId;
+          // Persist before the first poll — the job is billable from here on.
+          await fs.writeFile(
+            ticketFile,
+            JSON.stringify(
+              { model: job.model, queueId, requestedAt: new Date().toISOString() } satisfies QueueTicket,
+              null,
+              2,
+            ),
+          );
+        }
+
         const video = await media.videoAwait({
-          model: job.model,
+          model,
           queueId,
-          onProgress: (msg) =>
-            ctx.setDetail('films', `level ${level.index} shot ${job.shotIndex + 1}: ${msg}`),
+          onProgress: (msg) => ctx.setDetail('films', `${label}: ${msg}`),
         });
         await fs.writeFile(clipFile, video);
-        await media.videoComplete(job.model, queueId);
-        ctx.log('films', `level ${level.index} shot ${job.shotIndex + 1}: done (${(video.length / 1e6).toFixed(1)} MB)`);
+        await media.videoComplete(model, queueId);
+        await fs.rm(ticketFile, { force: true });
+        ctx.log('films', `${label}: done (${(video.length / 1e6).toFixed(1)} MB)`);
       }
       clips.push(clipFile);
       const frame = path.join(os.tmpdir(), `lastframe-${ctx.projectId}-${level.index}-${job.shotIndex}.jpg`);
