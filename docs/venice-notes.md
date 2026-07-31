@@ -67,17 +67,44 @@ Pricing is dynamic — there is no static price list, which is why the pipeline 
 and asks before spending. Reference: **$0.14 per second at 1080p** on Wan 2.7 (10s = $1.40).
 
 Model IDs must be checked against the live catalog. `GET /api/v1/models?type=video` needs no
-auth and returns per-model constraints — `durations`, `resolutions`, `aspect_ratios`, whether
-audio is generated and whether it is configurable. Guessing an ID from documentation or a
-changelog does not work; one such guess (`kling-v3-pro`) does not exist and failed the run at
-the quote step.
+auth and returns per-model constraints under `model_spec.constraints` — `durations`,
+`resolutions`, `aspect_ratios`, `prompt_character_limit`, whether audio is generated and whether
+it is configurable. Guessing an ID from documentation or a changelog does not work; one such
+guess (`kling-v3-pro`) does not exist and failed the run at the quote step.
 
-Wan 2.7 specifics as used here:
+**The films step reads those constraints rather than assuming them.** Shot durations are clamped
+to the executing model's own `durations`, the resolution is resolved against its `resolutions`,
+and `aspect_ratio` is sent as 16:9 when the model offers a choice and omitted when it lists none.
+`VENICE_VIDEO_RESOLUTION` is a *preference* that is honoured when the model offers it and
+otherwise replaced by the model's own option, with the substitution logged. The catalog is
+fetched once per process and an unknown model id fails immediately with the id named.
 
-- `wan-2-7-reference-to-video` — **5s or 10s only**, takes `reference_image_urls` (up to 9,
-  http/https or data URLs). Generates audio, not configurable.
-- `wan-2-7-image-to-video` — 5s/10s/15s, takes `image_url` as the start frame. This is what
-  chaining uses.
+**`/video/quote` and `/video/queue` do not validate the same fields.** MiniMax quoted happily
+without `aspect_ratio` and then rejected the queue call with `aspect_ratio: Required`. So a clean
+quote does not prove a queue will be accepted; the two calls are now given identical parameters
+so the price quoted is the price of what actually gets queued.
+
+This exists because the tiers used to be constants — and they were Wan 2.7's exact durations.
+Pointing the pipeline at MiniMax H3 failed at the quote step with
+`resolution: Invalid enum value. Expected '2K', received '1080p'`, since a global default cannot
+be right for every model. It failed before spending anything, which is the one thing that went
+well.
+
+Two model families verified against the live catalog:
+
+- `wan-2-7-reference-to-video` — 1080p/720p, **5s or 10s only**, takes `reference_image_urls`
+  (up to 9, http/https or data URLs). Generates audio, not configurable.
+- `wan-2-7-image-to-video` — 1080p/720p, 5s/10s/15s, takes `image_url` as the start frame. This
+  is what chaining uses.
+- `minimax-h3-reference-to-video` — **2K only**, every whole second from 5s to 15s, and
+  `aspect_ratio` is **required** (16:9 · 21:9 · 4:3 · 1:1 · 3:4 · 9:16). Prompts cap at 2500
+  characters.
+- `minimax-h3-image-to-video` — same 2K and durations, but lists no aspect ratios, because a
+  start-frame model takes the ratio from its input image.
+
+MiniMax's per-second durations let shot lengths fit a voiceover far more closely than Wan's
+5/10/15 tiers, and reference shots are no longer capped at 10s — that limit was Wan's, not a
+general one.
 
 Data URLs work for both reference and start-frame images; a ~240 KB base64 image was accepted
 without trouble. Generated clips arrive at ~13–15 MB per 10 seconds of 1080p, with an AAC track

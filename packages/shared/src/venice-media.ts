@@ -59,13 +59,63 @@ export interface VideoQueueParams {
   referenceImageUrls?: string[];
 }
 
+/** What a video model actually accepts, straight from the live catalog. */
+export interface VideoModelConstraints {
+  /** e.g. ["1080p","720p"] for Wan 2.7, ["2K"] for MiniMax H3. */
+  resolutions: string[];
+  /** Ascending seconds, e.g. [5,10] for Wan reference, 5..15 for MiniMax. */
+  durationsSec: number[];
+  aspectRatios: string[];
+  promptCharacterLimit?: number;
+}
+
 export class VeniceMedia {
   private apiKey: string;
   private baseUrl: string;
+  /** The video catalog is immutable for a process lifetime; fetch it at most once. */
+  private videoCatalog: Promise<Map<string, VideoModelConstraints>> | null = null;
 
   constructor(opts: VeniceMediaOptions) {
     this.apiKey = opts.apiKey;
     this.baseUrl = (opts.baseUrl ?? 'https://api.venice.ai/api/v1').replace(/\/$/, '');
+  }
+
+  /**
+   * Per-model constraints from `GET /models?type=video`. Hardcoding these does not survive a
+   * model swap: the pipeline's tiers were Wan 2.7's exact durations, and pointing it at
+   * MiniMax H3 — which only accepts "2K" — failed at the quote step on resolution.
+   */
+  async videoModelConstraints(model: string): Promise<VideoModelConstraints> {
+    this.videoCatalog ??= (async () => {
+      const res = await this.withRetry('models?type=video', () =>
+        fetch(`${this.baseUrl}/models?type=video`, { headers: this.headers(false) }),
+      );
+      if (!res.ok) await this.fail(res, 'models?type=video');
+      const json = (await res.json()) as any;
+      const entries = new Map<string, VideoModelConstraints>();
+      for (const m of json.data ?? json.models ?? []) {
+        const id = m.id ?? m.name;
+        const c = m.model_spec?.constraints ?? {};
+        if (!id) continue;
+        entries.set(id, {
+          resolutions: c.resolutions ?? [],
+          durationsSec: (c.durations ?? [])
+            .map((d: string) => Number(String(d).replace('s', '')))
+            .filter((n: number) => Number.isFinite(n))
+            .sort((a: number, b: number) => a - b),
+          aspectRatios: c.aspect_ratios ?? [],
+          promptCharacterLimit: c.prompt_character_limit,
+        });
+      }
+      return entries;
+    })();
+
+    const found = (await this.videoCatalog).get(model);
+    if (!found)
+      throw new Error(
+        `Video model "${model}" is not in Venice's live catalog — check the id against GET /models?type=video`,
+      );
+    return found;
   }
 
   private headers(json = true): Record<string, string> {

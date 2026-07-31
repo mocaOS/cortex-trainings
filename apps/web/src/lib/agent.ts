@@ -78,6 +78,11 @@ in it too. Do not mix styles between levels — one visual world for the whole t
 - ANIMATION (HyperFrames): concepts, lists, models, rules, processes, numbers. Free — the default.
 - IMAGE: context for interaction screens. Nearly free.
 
+**Every level also gets an interaction-screen image**, on top of its FILM or ANIMATION — one
+English image prompt per level, written in the same visual style. Images cost almost nothing and
+the interaction screen looks unfinished without one, so plan one for every level rather than
+treating IMAGE as an alternative to the other two media.
+
 ## Interaction toolbox — a DIFFERENT form per level (variety is the point)
 These are the ONLY forms the production pipeline can render. Design within them: anything else
 gets flattened into a plain quiz on the way to production, and a flattened exercise loses the
@@ -126,8 +131,8 @@ as "Level N interaction" makes the learner answer the identical questions twice 
 4. Per level: learning objective, key takeaway (ONE sentence), teaching text (the substance,
    prose, based on Cortex research), voiceover script (word count = target seconds × 2.5),
    media plan (FILM → Seedance-style English prompt + shot lengths; ANIMATION → beat plan;
-   IMAGE → English prompt), interaction fully written out (questions, options, resolutions,
-   feedback, XP)
+   plus the interaction-screen IMAGE prompt, which every level gets), interaction fully written
+   out (questions, options, resolutions, feedback, XP)
 5. Final check — all questions with correct answers and distractors
 6. Summary / cheat sheet — all key takeaways
 7. Sources & date — the Cortex documents used, mandatory

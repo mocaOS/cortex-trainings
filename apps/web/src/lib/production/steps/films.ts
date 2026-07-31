@@ -2,7 +2,7 @@ import 'server-only';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import type { PlanLevel } from '@cortex-trainings/shared';
+import type { PlanLevel, VideoModelConstraints } from '@cortex-trainings/shared';
 import type { RunContext } from '../runner';
 import { getMedia, mediaModels } from '../media-client';
 import { concatAndTrim, extractLastFrame, muxVoiceover } from '../ffmpeg';
@@ -14,14 +14,48 @@ interface ShotJob {
   prompt: string;
   duration: string; // clamped to the executing model's options
   model: string;
+  /** Resolution the executing model accepts — Wan wants 1080p, MiniMax only 2K. */
+  resolution: string;
+  /**
+   * Set only for models that offer a choice. MiniMax's reference-to-video *requires* it and
+   * rejects the queue call without it; start-frame models list none, because the ratio comes
+   * from the input frame.
+   */
+  aspectRatio?: string;
   /** Continue the previous shot's scene from its last frame, rather than cut. */
   continues: boolean;
 }
 
-const CHAIN_TIERS = [5, 10, 15];
-const REFERENCE_TIERS = [5, 10]; // reference-to-video supports 5s/10s only
-
 const secs = (d: string) => Number(d.replace('s', ''));
+
+/**
+ * Picks the resolution to request for a model. `VENICE_VIDEO_RESOLUTION` is a preference, not a
+ * command: a model that does not offer it gets its own highest option instead, because the
+ * alternative is a 400 at the quote step for a setting the operator cannot know per model.
+ */
+function resolutionFor(model: string, constraints: VideoModelConstraints, ctx: RunContext): string {
+  const offered = constraints.resolutions;
+  if (offered.length === 0) throw new Error(`${model}: the catalog lists no resolutions`);
+  const wanted = mediaModels.videoResolution;
+  if (wanted && offered.includes(wanted)) return wanted;
+  const chosen = offered[0];
+  if (wanted)
+    ctx.log(
+      'films',
+      `${model} does not offer ${wanted} (only ${offered.join(', ')}) — requesting ${chosen}`,
+    );
+  return chosen;
+}
+
+/**
+ * Trainings are 16:9 throughout, so take it when the model offers a choice. Models that list no
+ * ratios take none: Wan ignores the field and start-frame models derive it from the input image.
+ */
+function aspectRatioFor(constraints: VideoModelConstraints): string | undefined {
+  const offered = constraints.aspectRatios;
+  if (offered.length === 0) return undefined;
+  return offered.includes('16:9') ? '16:9' : offered[0];
+}
 
 /**
  * Builds the shot list for a film level.
@@ -35,20 +69,35 @@ const secs = (d: string) => Number(d.replace('s', ''));
  * last frame.
  */
 async function shotJobs(ctx: RunContext, level: PlanLevel): Promise<ShotJob[]> {
+  const media = getMedia();
+  // Both roles are looked up once; the catalog itself is fetched once per process.
+  const caps = {
+    chain: await media.videoModelConstraints(mediaModels.videoChain),
+    reference: await media.videoModelConstraints(mediaModels.videoReference),
+  };
+  const tiersFor = (continues: boolean) =>
+    (continues ? caps.chain : caps.reference).durationsSec;
+
   const jobs: ShotJob[] = level.shots.map((shot, i) => {
     // Chain from the previous frame only within one scene. Across a cut, generate from the
     // guide-character reference instead — feeding a forest frame to a showroom prompt makes
     // the clip morph between settings rather than cutting cleanly.
     const continues = i > 0 && shot.continuesPreviousScene === true;
-    const tiers = continues ? CHAIN_TIERS : REFERENCE_TIERS;
+    const model = continues ? mediaModels.videoChain : mediaModels.videoReference;
+    const tiers = tiersFor(continues);
+    if (tiers.length === 0) throw new Error(`${model}: the catalog lists no durations`);
     const wanted = secs(shot.duration);
-    const allowed = tiers.includes(wanted) ? wanted : Math.max(...tiers.filter((t) => t <= wanted)) || tiers[0];
+    // Largest offered duration that does not exceed the plan's ask; the shortest if all do.
+    const fitting = tiers.filter((t) => t <= wanted);
+    const allowed = fitting.length ? Math.max(...fitting) : tiers[0];
     return {
       level,
       shotIndex: i,
       prompt: shot.prompt,
       duration: `${allowed}s`,
-      model: continues ? mediaModels.videoChain : mediaModels.videoReference,
+      model,
+      resolution: resolutionFor(model, continues ? caps.chain : caps.reference, ctx),
+      aspectRatio: aspectRatioFor(continues ? caps.chain : caps.reference),
       continues,
     };
   });
@@ -57,7 +106,7 @@ async function shotJobs(ctx: RunContext, level: PlanLevel): Promise<ShotJob[]> {
   const total = () => jobs.reduce((sum, j) => sum + secs(j.duration), 0);
   // Grow the later shots (longest tier available) until the chain covers the narration.
   for (let i = jobs.length - 1; i >= 0 && vo.duration - total() > 2; i--) {
-    const tiers = jobs[i].continues ? CHAIN_TIERS : REFERENCE_TIERS;
+    const tiers = tiersFor(jobs[i].continues);
     for (const tier of tiers) {
       if (tier > secs(jobs[i].duration) && vo.duration - total() > 2) {
         jobs[i].duration = `${tier}s`;
@@ -88,10 +137,11 @@ export async function quoteFilms(ctx: RunContext): Promise<{ totalUsd: number; s
     const quote = await media.videoQuote({
       model: job.model,
       duration: job.duration,
-      resolution: mediaModels.videoResolution,
+      resolution: job.resolution,
+      ...(job.aspectRatio ? { aspectRatio: job.aspectRatio } : {}),
     });
     total += quote;
-    ctx.log('films', `quote: level ${job.level.index} shot ${job.shotIndex + 1} (${job.model}, ${job.duration}) = $${quote.toFixed(2)}`);
+    ctx.log('films', `quote: level ${job.level.index} shot ${job.shotIndex + 1} (${job.model}, ${job.duration}, ${job.resolution}) = $${quote.toFixed(2)}`);
   }
   return { totalUsd: total, shots: jobs.length };
 }
@@ -175,13 +225,14 @@ export async function stepFilms(ctx: RunContext): Promise<void> {
             : job.prompt;
           ctx.log(
             'films',
-            `${label}: queueing (${job.model}, ${job.duration}, ${job.continues ? 'continues scene' : 'new scene'})`,
+            `${label}: queueing (${job.model}, ${job.duration}, ${job.resolution}, ${job.continues ? 'continues scene' : 'new scene'})`,
           );
           const queued = await media.videoQueue({
             model: job.model,
             prompt,
             duration: job.duration,
-            resolution: mediaModels.videoResolution,
+            resolution: job.resolution,
+            ...(job.aspectRatio ? { aspectRatio: job.aspectRatio } : {}),
             ...(job.continues && lastFrameUrl
               ? { imageUrl: lastFrameUrl }
               : { referenceImageUrls: [refUrl] }),

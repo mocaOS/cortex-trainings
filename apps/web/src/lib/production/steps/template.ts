@@ -310,14 +310,23 @@ function renderInteraction(el, inter, li){
   return renderQuestions(el, inter, li);
 }
 
+/* Every statement gets its own slider, on one screen. Rendering only questions[0] silently threw
+   away the rest — a three-statement self-assessment shipped as one question. They stay on a
+   single screen deliberately: the point is seeing your own answers side by side. */
 function renderSlider(el, inter, li){
-  const q = inter.questions[0] || {text:''};
-  const card=document.createElement('div'); card.className='card';
-  card.innerHTML = '<p><strong>'+esc(q.text)+'</strong></p><p class="hint">'+T.sliderHint+'</p>'
-    + '<input type="range" min="0" max="10" value="5">'
-    + '<div style="margin-top:16px"><button class="btn primary">'+T.continue+'</button></div>';
-  card.querySelector('.btn').onclick=()=>{ addXp(inter.xp||10); completeLevel(li); };
-  el.appendChild(card);
+  const qs = inter.questions.length ? inter.questions : [{text:''}];
+  const hint=document.createElement('p'); hint.className='hint'; hint.textContent=T.sliderHint;
+  el.appendChild(hint);
+  qs.forEach(q=>{
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML = '<p><strong>'+esc(q.text)+'</strong></p>'
+      + '<input type="range" min="0" max="10" value="5">';
+    el.appendChild(card);
+  });
+  const row=document.createElement('div'); row.style.marginTop='16px';
+  const btn=document.createElement('button'); btn.className='btn primary'; btn.textContent=T.continue;
+  btn.onclick=()=>{ addXp(inter.xp||10); completeLevel(li); };
+  row.appendChild(btn); el.appendChild(row);
 }
 
 function renderSort(el, inter, li){

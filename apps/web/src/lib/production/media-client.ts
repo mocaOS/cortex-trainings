@@ -34,5 +34,11 @@ export const mediaModels = {
    * `speed` entirely (verified: 1.0/1.15/1.4 all return the same duration).
    */
   ttsTempo: Number(process.env.TTS_TEMPO ?? '1.15'),
-  videoResolution: process.env.VENICE_VIDEO_RESOLUTION ?? '1080p',
+  /**
+   * A *preference*, not a default: video models disagree on what they accept (Wan 2.7 offers
+   * 1080p/720p, MiniMax H3 only 2K), so the films step resolves it against the model's live
+   * catalog entry and falls back to what that model offers. Leave unset to always take the
+   * model's own best option.
+   */
+  videoResolution: process.env.VENICE_VIDEO_RESOLUTION,
 };

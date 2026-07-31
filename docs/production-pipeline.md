@@ -79,8 +79,17 @@ Finally the shots are concatenated, trimmed to voiceover + 1s, and the voiceover
 underneath (video padded by cloning the last frame if it's short, audio padded with silence if
 it's long).
 
-Cost: quoted live, because video pricing is dynamic. Reference: ~$0.14 per second at 1080p, so
-a 40-second sequence is ~$5.60. Generation takes 2–3 minutes per shot.
+**Everything is normalised to 1920×1080 at 25 fps during concat and mux**, whatever the model
+produced — MiniMax H3 delivers 2560×1440 at 24 fps and is downscaled. This is deliberate, not an
+oversight: the training is one self-contained HTML file with every clip inlined as base64, so
+master resolution translates directly into download size for a video that plays in a card on a
+learner's screen. A 2K master buys a slightly better downscale source and nothing else. If a
+model's native resolution is ever worth keeping, it is the two `scale=1920:1080…,fps=25` filters
+in `lib/production/ffmpeg.ts` that decide it.
+
+Cost: quoted live, because video pricing is dynamic. Reference: ~$0.14 per second at 1080p on
+Wan 2.7, so a 40-second sequence is ~$5.60; MiniMax H3 at its mandatory 2K came out about 16%
+higher for the same eight shots. Generation takes 2–3 minutes per shot on Wan, ~7 on MiniMax.
 
 **Guideline: 2–3 films per training, everything else animation.** Video seconds dominate the
 budget by an order of magnitude.
