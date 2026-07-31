@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev)",
+      "Bash(npm run build)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run typecheck -w apps/web)",
+      "Bash(npm install)",
+      "Bash(node scripts/qa-training.mjs:*)",
+      "Bash(ffprobe:*)",
+      "Bash(ffmpeg -y -hide_banner:*)",
+      "Bash(curl -s localhost:3000/*)",
+      "Bash(curl -s -o /dev/null -w:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(npx playwright install chromium)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./apps/web/.env)"
+    ]
+  }
+}

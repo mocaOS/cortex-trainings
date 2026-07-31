@@ -4,47 +4,61 @@ Standalone web application that turns domain knowledge from a [Cortex](https://d
 instance into interactive, offline-capable HTML training units — implementing the `/trainings`
 skill (see `SKILL.md`) with [Venice.ai](https://docs.venice.ai) as the AI provider.
 
-- **Architecture & service analysis:** `OVERVIEW.md`
+- **Documentation:** [`docs/`](docs/) — start with [docs/README.md](docs/README.md)
 - **The skill this app implements:** `SKILL.md` (English) / `SKILL-german.md`
+- **Original service analysis:** `OVERVIEW.md`
+- **Repo guide for Claude Code:** `CLAUDE.md`
 
-## Status
-
-**Milestone 1 (current): Part 1 end-to-end** — briefing → agent research against Cortex
-(deep-research fan-out, always `use_agentic`) → `curriculum.md` generation → revision chat →
-approval gate. No media spend.
-
-**Milestone 2 (next): Part 2 production** — the `apps/worker` job DAG: Venice video/image/TTS/STT,
-HyperFrames renders, ffmpeg muxing, single-file HTML assembly, Playwright QA.
-
-## Layout
+## How it works
 
 ```
-apps/web        Next.js app — UI (EN/DE via APP_LANG), API routes, agent loop
-apps/worker     production worker (milestone 2 stub)
-packages/shared types + Cortex client (read-only, SSE deep research) + Venice client
+Briefing ─▶ fable agent ──▶ curriculum.md ──▶ ⛔ approval ──▶ production ──▶ training.html
+ 4 inputs   deep research    versioned,        gate           7 steps       single file,
+             over Cortex     reviewable                       resumable     runs offline
+             (cheap)                                          (costs money)
 ```
+
+Part 1 is free, so content gets finished and signed off as a document before any media is
+generated. Part 2 pauses twice for human judgement: picking the guide-character reference
+image, and confirming the live video cost quote. See [docs/workflow.md](docs/workflow.md).
 
 ## Setup
 
 ```bash
-cp .env.example .env    # fill in VENICE_API_KEY, CORTEX_BASE_URL, CORTEX_API_KEY
+cp .env.example .env    # VENICE_API_KEY, CORTEX_BASE_URL, CORTEX_API_KEY
 npm install
+npx playwright install chromium
 npm run dev             # → http://localhost:3000
 ```
 
-Requirements: Node 22+. The Cortex key must be a plain read-only key (`cortex_ro_…`),
-ideally collection-scoped. Deep research requires `ENABLE_AGENTIC_RAG` + `ENABLE_AGENT_RESEARCH`
-on the Cortex instance.
+Requirements: Node 22+, ffmpeg and ffprobe on PATH, Playwright Chromium. The Cortex key must
+be a plain read-only key (`cortex_ro_…`), ideally collection-scoped, and the instance needs
+`ENABLE_AGENTIC_RAG` + `ENABLE_AGENT_RESEARCH` for deep research.
 
-## Language
+Full reference: [docs/configuration.md](docs/configuration.md).
 
-`APP_LANG` (`en` | `de`) sets the UI language and the default training content language.
-Adding a locale = add `apps/web/src/locales/<lang>.json` and register it in
-`apps/web/src/lib/i18n.ts`. The per-training content language is chosen in the briefing
-and can differ from the UI language.
+## Layout
+
+```
+apps/web         Next.js app — UI, API routes, agent loop, production pipeline
+apps/worker      placeholder for extracting production into its own process
+packages/shared  Cortex + Venice clients, plan/state types
+scripts/         qa-training.mjs — automated browser QA of a produced training
+docs/            architecture, pipeline, provider notes, troubleshooting
+```
+
+## Commands
+
+```bash
+npm run dev                                  # dev server
+npm run build                                # typecheck + production build
+npm run typecheck                            # all workspaces
+node scripts/qa-training.mjs <project-id>    # click through a produced training
+```
 
 ## Data
 
-Projects are stored on disk under `STORAGE_PATH` (default `./data`):
-`projects/<id>/{project.json, curriculum.md, versions/, chat.json}` — transparent,
-versioned, no database required for milestone 1.
+Everything lives on disk under `STORAGE_PATH` (default `apps/web/data`) — project metadata,
+every curriculum version, the production plan, per-step state, and all media. No database:
+the artefacts are the point, so they stay diffable, recoverable, and inspectable. Layout in
+[docs/architecture.md](docs/architecture.md#state-on-disk).
