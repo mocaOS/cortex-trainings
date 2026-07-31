@@ -38,8 +38,10 @@ for (const level of plan.levels) {
   for (const q of level.interaction.questions) correct.set(q.text.trim(), q.options[q.correctIndex]);
 }
 for (const q of plan.finalCheck.questions) correct.set(q.text.trim(), q.options[q.correctIndex]);
-const sortLevel = plan.levels.find((l) => l.interaction.kind === 'sort_order');
-const sortOrder = sortLevel ? sortLevel.interaction.questions[0].options : [];
+// A training can contain several sorting tasks, each with its own items.
+const sortOrders = plan.levels
+  .filter((l) => l.interaction.kind === 'sort_order' && l.interaction.questions[0]?.options?.length)
+  .map((l) => l.interaction.questions[0].options);
 
 const errors = [];
 const visited = [];
@@ -98,11 +100,17 @@ for (let step = 0; step < 80; step++) {
     }
   }
 
-  // Sorting task: click items in the plan's correct order.
-  if (sortOrder.length && (await page.locator('.opt:not([disabled])').count())) {
-    const isSort = await page.locator('.card', { hasText: sortOrder[0].slice(0, 30) }).count();
-    if (isSort) {
-      for (const item of sortOrder) {
+  // Sorting task: identify which one is on screen, then click its items in order.
+  if (sortOrders.length && (await page.locator('.opt:not([disabled])').count())) {
+    let order = null;
+    for (const candidate of sortOrders) {
+      if (await page.locator('.card', { hasText: candidate[0].slice(0, 30) }).count()) {
+        order = candidate;
+        break;
+      }
+    }
+    if (order) {
+      for (const item of order) {
         const opt = page.locator('.opt:not([disabled])', { hasText: item.slice(0, 34) }).first();
         if (await opt.count()) await opt.click();
         await page.waitForTimeout(140);
