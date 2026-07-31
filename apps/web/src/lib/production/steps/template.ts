@@ -6,7 +6,8 @@ export interface TrainingLevel {
   keyTakeaway: string;
   video: string | null; // data URL
   image: string | null; // data URL
-  interaction: PlanInteraction;
+  /** null when the level has no interaction of its own — see PlanLevel.interaction. */
+  interaction: PlanInteraction | null;
 }
 
 export interface TrainingData {
@@ -194,7 +195,8 @@ try { const saved = JSON.parse(localStorage.getItem(KEY)); if (saved && typeof s
 
 /* Screen list: 0=start, per level: media(l), interaction(l), then finalCheck, summary */
 const screens = [{kind:'start'}];
-DATA.levels.forEach((lv,i)=>{ screens.push({kind:'media',level:i}); screens.push({kind:'interact',level:i}); });
+/* A level whose interaction was the final check has none of its own — it leads straight on. */
+DATA.levels.forEach((lv,i)=>{ screens.push({kind:'media',level:i}); if (lv.interaction) screens.push({kind:'interact',level:i}); });
 screens.push({kind:'final'});
 screens.push({kind:'summary'});
 
@@ -269,7 +271,12 @@ function renderMedia(el, li){
   el.insertAdjacentHTML('beforeend','<p class="keytake">'+esc(lv.keyTakeaway)+'</p>');
 }
 
-function nextFromMedia(li){ state.lastScreen=state.screen+1; go(state.screen+1); }
+/* With no interaction screen to follow, the media screen is what completes the level — otherwise
+   the badge, the unlock and the level XP would never be awarded. */
+function nextFromMedia(li){
+  if (li>=0 && !DATA.levels[li].interaction) return completeLevel(li);
+  state.lastScreen=state.screen+1; go(state.screen+1);
+}
 
 function completeLevel(li, earned){
   if (li>=0 && li+1>state.unlocked){ state.unlocked=li+1; addXp(25); }

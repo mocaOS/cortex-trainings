@@ -213,6 +213,24 @@ h3 {
   color: var(--muted-foreground);
 }
 
+/* Which Cortex instance the agent will research — shown on the briefing page. */
+.cortex-source {
+  margin: -0.5rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted-foreground);
+}
+
+.cortex-source code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--foreground);
+  background-color: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 2);
+  padding: 0.1rem 0.4rem;
+  word-break: break-all;
+}
+
 /* Full briefing topic shown as description under the shortened headline. */
 .topic-full {
   margin: 0;

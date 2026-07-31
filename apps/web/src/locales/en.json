@@ -11,6 +11,7 @@
   "dashboard.status.done": "Done",
   "briefing.title": "New training — briefing",
   "briefing.intro": "Four inputs determine scope, tone, and production cost. The agent researches your Cortex before writing anything.",
+  "briefing.cortexSource": "Knowledge source:",
   "briefing.topic": "Topic & learning objectives",
   "briefing.topicHint": "What is it about, and what should learners be able to do afterwards?",
   "briefing.audience": "Audience & prior knowledge",

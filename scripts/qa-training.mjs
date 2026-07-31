@@ -32,25 +32,42 @@ const plan = JSON.parse(await readFile(path.join(projectDir, 'plan.json'), 'utf8
 const trainingFile = path.join(projectDir, 'training.html');
 await readFile(trainingFile); // fail early with a clear ENOENT if not produced
 
+// Levels may legitimately have no interaction of their own (the final check is its own screen).
+const interactiveLevels = plan.levels.filter((l) => l.interaction);
+
 // Correct answers, so the walkthrough exercises success paths rather than failure paths.
 const correct = new Map();
-for (const level of plan.levels) {
+for (const level of interactiveLevels) {
   for (const q of level.interaction.questions) correct.set(q.text.trim(), q.options[q.correctIndex]);
 }
 for (const q of plan.finalCheck.questions) correct.set(q.text.trim(), q.options[q.correctIndex]);
 // Matching tasks: item text -> its correct category, so the walk can assign correctly.
 const matchAnswers = new Map();
-for (const l of plan.levels) {
+for (const l of interactiveLevels) {
   if (l.interaction.kind !== 'match_pairs') continue;
   for (const q of l.interaction.questions) matchAnswers.set(q.text.trim(), q.options[q.correctIndex]);
 }
 
 // A training can contain several sorting tasks, each with its own items.
-const sortOrders = plan.levels
+const sortOrders = interactiveLevels
   .filter((l) => l.interaction.kind === 'sort_order' && l.interaction.questions[0]?.options?.length)
   .map((l) => l.interaction.questions[0].options);
 
 const errors = [];
+
+// Structural checks on the plan itself. A training that asks the same questions twice used to
+// pass QA cleanly: every counter looked healthy because nothing compared the screens.
+const fingerprint = (i) => i.questions.map((q) => q.text.trim()).join(' | ');
+const seen = new Map([[fingerprint(plan.finalCheck), 'final check']]);
+for (const l of interactiveLevels) {
+  if (l.interaction.kind === 'final_check')
+    errors.push(`level ${l.index}: interaction has kind "final_check" — the final check is its own screen`);
+  if (!l.interaction.questions.length) continue;
+  const print = fingerprint(l.interaction);
+  const owner = seen.get(print);
+  if (owner) errors.push(`level ${l.index}: asks the identical question set as the ${owner}`);
+  else seen.set(print, `level ${l.index}`);
+}
 const visited = [];
 let videoResults = [];
 

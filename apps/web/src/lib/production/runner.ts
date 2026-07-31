@@ -136,7 +136,9 @@ class ProductionRun {
 
     const stepFns: Record<StepId, () => Promise<void>> = {
       plan: async () => {
-        this.plan = await extractPlan(curriculum, project.briefing);
+        this.plan = await extractPlan(curriculum, project.briefing, (note) =>
+          this.log('plan', note),
+        );
         ctx.plan = this.plan;
         await fs.writeFile(path.join(this.dir, 'plan.json'), JSON.stringify(this.plan, null, 2));
         ctx.setDetail(

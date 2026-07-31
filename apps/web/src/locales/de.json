@@ -11,6 +11,7 @@
   "dashboard.status.done": "Fertig",
   "briefing.title": "Neue Schulung — Briefing",
   "briefing.intro": "Vier Angaben bestimmen Umfang, Ton und Produktionskosten. Der Agent recherchiert in deinem Cortex, bevor er schreibt.",
+  "briefing.cortexSource": "Wissensquelle:",
   "briefing.topic": "Thema & Lernziele",
   "briefing.topicHint": "Worum geht es, und was sollen Lernende danach können oder anders machen?",
   "briefing.audience": "Zielgruppe & Vorwissen",

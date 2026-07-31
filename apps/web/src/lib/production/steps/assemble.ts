@@ -29,7 +29,11 @@ async function videoDataUrl(ctx: RunContext, file: string): Promise<string> {
   return fileAsDataUrl(source, 'video/mp4');
 }
 
-function normalizeInteraction(interaction: PlanInteraction): PlanInteraction {
+function normalizeInteraction(interaction: PlanInteraction): PlanInteraction;
+function normalizeInteraction(interaction: PlanInteraction | null): PlanInteraction | null;
+function normalizeInteraction(interaction: PlanInteraction | null): PlanInteraction | null {
+  // A level whose interaction duplicated the final check has none of its own.
+  if (!interaction) return null;
   // Defensive: guarantee sane bounds so the runtime JS can trust the data.
   return {
     ...interaction,

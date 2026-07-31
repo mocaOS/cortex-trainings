@@ -79,10 +79,24 @@ in it too. Do not mix styles between levels — one visual world for the whole t
 - IMAGE: context for interaction screens. Nearly free.
 
 ## Interaction toolbox — a DIFFERENT form per level (variety is the point)
-Self-assessment slider · prediction game with probability bars · myth-or-fact flip cards ·
-find-the-N-mistakes · drag & drop into categories · scenario quiz with 2 buttons · clickable
-timeline · branching story (3 options, consequence feedback) · rapid fire with timer ·
-sorting/ordering task · final check (8–10 mixed questions) at the end.
+These are the ONLY forms the production pipeline can render. Design within them: anything else
+gets flattened into a plain quiz on the way to production, and a flattened exercise loses the
+thing that made it worth doing.
+- **myth-or-fact flip cards** — statements judged myth or fact (two options, inherently binary)
+- **find-the-N-mistakes** — per-statement correct/mistake judgement (inherently binary)
+- **drag & drop into categories** — items assigned to 3–5 categories, evaluated as a whole
+- **scenario quiz** — a situation plus at least THREE plausible readings, one correct
+- **sorting/ordering task** — items placed in the right sequence, checked as a whole
+- **self-assessment slider** — no right answer, for prior-knowledge or attitude checks
+- **final check** — 8–10 mixed questions, at the end, its own screen (see below)
+
+Do NOT design branching stories, clickable timelines, rapid-fire-with-timer or probability-bar
+prediction games: there is no renderer for them, so they arrive as quizzes with the branching
+and the timing silently removed.
+
+**The final check is its own screen, not a level's interaction.** Give every level an exercise of
+its own and write the final check separately in section 5. A curriculum that lists the final check
+as "Level N interaction" makes the learner answer the identical questions twice in a row.
 
 ## Interaction quality — the rules that separate a real exercise from busywork
 
@@ -92,8 +106,11 @@ sorting/ordering task · final check (8–10 mixed questions) at the end.
 2. **Ordering tasks must not carry their order.** No "Day 1", "Step 2", "Month 6", "Phase 3",
    "First/Then/Finally", no numbering. If the sequence is readable from labels, the learner
    sorts numbers instead of reasoning about the process. Describe each step by what HAPPENS.
-3. **Distractors must be plausible.** A wrong option nobody would pick adds nothing; each
-   should be something a real learner might genuinely believe.
+3. **Distractors must be plausible, and there must be enough of them.** A wrong option nobody
+   would pick adds nothing; each should be something a real learner might genuinely believe.
+   Scenario quizzes and the final check need at least THREE options — a two-button question is a
+   coin flip a guesser wins half the time. Only myth-or-fact and find-the-mistakes are binary by
+   nature, and at most ONE level should use a binary form, or the whole training becomes guessable.
 4. **The final check is consolidation, not a rerun.** Do NOT reuse the level interactions'
    questions or rephrase them lightly. Write FRESH questions that test the key takeaways —
    ideally combining two levels, applying a rule to a new situation, or asking "what would you

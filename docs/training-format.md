@@ -39,20 +39,34 @@ like a chore.
 | `match_pairs` | Matching, drag & drop into categories | Tap an item, tap its category; evaluated as a whole, wrong pairings marked individually |
 | `final_check` | Consolidation at the end | 8–10 mixed questions, shuffled |
 
-The curriculum may describe richer forms (branching stories, rapid-fire with timers); plan
-extraction maps those onto the closest supported type — but note that **flattening degrades an
-exercise**, and it is worth building a renderer rather than mapping away. A matching exercise
-flattened into independent multiple-choice questions became solvable by elimination and repeated
-one feedback sentence five times; that is why `match_pairs` exists.
+**The curriculum agent is told to design within exactly this list**, because plan extraction can
+only map anything else onto the closest supported type, and **flattening degrades an exercise**.
+A training shipped with a level designed as a branching story with consequence feedback; it
+arrived in production as three ordinary quiz questions, and nothing reported the loss. The agent
+prompt therefore names the forms it may use and names the ones it may not. When a richer form is
+genuinely wanted, build the renderer rather than widening the curriculum prompt again. A matching
+exercise flattened into independent multiple-choice questions became solvable by elimination and
+repeated one feedback sentence five times; that is why `match_pairs` exists.
 
-Three rules the extraction prompt enforces, each learned from a training that shipped without
+`PlanLevel.interaction` is nullable. Curricula habitually present the final check as the last
+level's interaction, but the template renders level interactions and the final check as separate
+screens — so a copy makes the learner answer the identical set twice in a row. The extraction
+prompt forbids the duplication, extraction strips it deterministically if it happens anyway (the
+level's interaction becomes `null` and it leads straight into the final check), and QA fails a
+training in which any two screens share a question set. All three layers exist because the first
+two are not reliable alone: the duplicate shipped once with QA reporting a clean pass, since every
+counter looked healthy and nothing compared the screens.
+
+Four rules the extraction prompt enforces, each learned from a training that shipped without
 them: an item must never name its own answer ("the sales folders in Google Drive" → "Google Drive
 Sync" teaches nothing), an ordering task must not carry its order in the labels ("Day 1", "Step
-2"), and the final check must ask applied questions rather than re-testing the levels' ground in
-easier recall form. The ordinal stripping is additionally enforced in code, because prompts alone
-are not reliable enough. Adding a type means extending the
-`InteractionKind` union, the plan schema's enum, the extraction prompt's mapping instructions,
-and a renderer in the template.
+2"), the final check must ask applied questions rather than re-testing the levels' ground in
+easier recall form, and a `quiz` needs at least three plausible options — a two-button question
+is a coin flip a guesser wins half the time, so only the inherently binary forms carry two. The
+ordinal stripping is additionally enforced in code, because prompts alone are not reliable
+enough. Adding a type means extending the `InteractionKind` union, the plan schema's enum, the
+extraction prompt's mapping instructions, the curriculum agent's toolbox, and a renderer in the
+template.
 
 ## XP
 

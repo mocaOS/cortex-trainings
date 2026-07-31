@@ -65,7 +65,13 @@ export interface PlanLevel {
   animationBeats: PlanAnimationBeat[];
   /** image (or film/animation context screen): English prompt. */
   imagePrompt: string;
-  interaction: PlanInteraction;
+  /**
+   * null when this level has no interaction of its own — the case when the curriculum used the
+   * final check as the last level's exercise. Plan extraction strips such a duplicate so the
+   * learner is not asked the same questions twice; the training then goes straight from this
+   * level's media screen to the final check.
+   */
+  interaction: PlanInteraction | null;
 }
 
 export interface ProductionPlan {

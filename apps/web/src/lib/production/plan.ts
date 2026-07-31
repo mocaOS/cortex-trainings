@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Briefing, ProductionPlan } from '@cortex-trainings/shared';
+import type { Briefing, PlanInteraction, ProductionPlan } from '@cortex-trainings/shared';
 import { visualStylePrompt } from '@cortex-trainings/shared';
 import { getVenice } from '../clients';
 import { env } from '../env';
@@ -142,9 +142,26 @@ Rules:
     Two quality rules for match_pairs: (a) never let an item name its own category — "Sales folders in Google Drive" paired with "Google Drive Sync" teaches nothing, so phrase each item by what it IS ("the sales team's shared folders"), not by where it lives; (b) put the overall resolution in the explanation of the FIRST question — only that one is shown, so do not rely on per-item copies.
     Keep all texts, options, resolutions and feedback in the target language, verbatim from the curriculum where possible.
 - finalCheck: kind "final_check" with the curriculum's final-check questions (options + correctIndex + explanation from its answer key). If a final-check question merely repeats a level interaction's question, keep the curriculum's wording but prefer its more applied variants — never invent new subject matter, and never pad the list with copies of level questions.
+  **The final check lives ONLY in finalCheck.** Curricula often present it as the last level's
+  interaction ("Level 6 interaction — final check"). That is a presentation detail: reproduce
+  those questions in finalCheck, and give that level its OWN distinct interaction of a different
+  kind, taken from whatever exercise material the curriculum offers for it. Never emit the same
+  questions as both a level interaction and finalCheck — the training renders both screens, so
+  the learner would answer the identical set twice in a row. If the curriculum genuinely leaves
+  that level no exercise of its own, emit its interaction with an empty questions array rather
+  than copying the final check.
+- Option counts: a "quiz" question needs at least 3 options, and every distractor must be one a
+  real learner might believe. Two-option quizzes are a coin flip — if the curriculum wrote a
+  scenario with two buttons, add the plausible third reading it omitted rather than shipping a
+  50/50 guess. Only the inherently binary forms (myth_fact, find_mistakes) carry exactly two.
 - cheatSheet: the key takeaways (one string per level, target language).`;
 
-export async function extractPlan(curriculum: string, briefing: Briefing): Promise<ProductionPlan> {
+export async function extractPlan(
+  curriculum: string,
+  briefing: Briefing,
+  /** Reports plan-quality observations that are worth seeing but must not fail the step. */
+  onNote: (message: string) => void = () => {},
+): Promise<ProductionPlan> {
   const venice = getVenice();
   const plan = await venice.chatJson<ProductionPlan>(
     [
@@ -175,7 +192,7 @@ export async function extractPlan(curriculum: string, briefing: Briefing): Promi
   const ORDINAL_PREFIX =
     /^\s*(?:(?:day|tag|step|schritt|month|monat|week|woche|phase|year|jahr|stage|stufe)\s*\d+|\d+)\s*(?:[-—–:.)]|\bof\b)\s*/i;
   for (const level of plan.levels) {
-    if (level.interaction.kind !== 'sort_order') continue;
+    if (level.interaction?.kind !== 'sort_order') continue;
     for (const question of level.interaction.questions) {
       question.options = question.options.map((option) => {
         const stripped = option.replace(ORDINAL_PREFIX, '').trim();
@@ -183,6 +200,47 @@ export async function extractPlan(curriculum: string, briefing: Briefing): Promi
         return stripped.length > 8 ? stripped : option;
       });
     }
+  }
+
+  // Deterministic backstop for the duplicated final check. Curricula routinely present the final
+  // check as the last level's interaction, and the template renders level interactions AND the
+  // final check as separate screens — so a copy means answering the identical set twice in a row.
+  // The prompt forbids it; stripping here guarantees it.
+  const fingerprint = (i: PlanInteraction) =>
+    i.questions.map((q) => q.text.trim()).join(' ');
+  const finalPrint = fingerprint(plan.finalCheck);
+  for (const level of plan.levels) {
+    if (!level.interaction) continue;
+    const empty = level.interaction.questions.length === 0;
+    const duplicate = plan.finalCheck.questions.length > 0 && fingerprint(level.interaction) === finalPrint;
+    if (empty || duplicate) {
+      level.interaction = null;
+      onNote(
+        `level ${level.index}: ${duplicate ? 'interaction duplicated the final check' : 'empty interaction'} — dropped, the level now leads straight into the final check`,
+      );
+    }
+  }
+
+  // Quality notes — visible, but not worth failing a paid production run over.
+  const kinds = new Map<string, number[]>();
+  for (const level of plan.levels) {
+    if (!level.interaction) continue;
+    kinds.set(level.interaction.kind, [
+      ...(kinds.get(level.interaction.kind) ?? []),
+      level.index,
+    ]);
+    const thin =
+      level.interaction.kind === 'quiz'
+        ? level.interaction.questions.filter((q) => q.options.length < 3).length
+        : 0;
+    if (thin > 0)
+      onNote(
+        `level ${level.index}: ${thin} quiz question(s) with fewer than 3 options — a 50/50 guess`,
+      );
+  }
+  for (const [kind, levels] of kinds) {
+    if (levels.length > 1)
+      onNote(`interaction "${kind}" repeats on levels ${levels.join(', ')} — variety is the point`);
   }
 
   // Minimal sanity checks — fail loudly rather than produce a broken training.
