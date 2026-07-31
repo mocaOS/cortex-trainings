@@ -1,5 +1,6 @@
 import 'server-only';
 import type { AgentMessage, Briefing, ToolCall } from '@cortex-trainings/shared';
+import { visualStylePrompt } from '@cortex-trainings/shared';
 import { getVenice } from './clients';
 import { executeTool, toolDefinitions, type ToolContext } from './tools';
 
@@ -22,6 +23,8 @@ const MAX_ITERATIONS = 40;
 const MAX_OUTPUT_TOKENS = Number(process.env.VENICE_MAX_OUTPUT_TOKENS ?? '64000');
 
 function systemPrompt(briefing: Briefing): string {
+  const ACCENT = process.env.ACCENT_COLOR?.trim() || 'oklch(0.79 0.18 70.67)';
+  const STYLE = visualStylePrompt(briefing.visualStyle);
   return `You are the curriculum author of "Cortex Trainings", a web application that produces
 story-driven, interactive learning units as single offline HTML files. You are executing
 PART 1 of the workflow: writing the curriculum document. Part 1 costs nothing — media
@@ -50,9 +53,20 @@ sources. Record source document names and dates — the curriculum must cite the
 Voiceover word count: ~2.5 words/second.
 
 ## Fixed defaults (state them in the fact sheet so the user can object)
-16:9 videos, dark design with ONE fixed accent color: ${process.env.ACCENT_COLOR?.trim() || 'oklch(0.79 0.18 70.67)'} — never choose a different color. XP + level badges. Form of address: casual
-for coaching/courses/trainings, formal for compliance and regulated industries. Guide
-character: an abstract object (glowing orb, crystal, robot cube) — NEVER a human.
+16:9 videos, dark design with ONE fixed accent color: ${ACCENT} — never choose a different
+color. XP + level badges. Form of address: casual for coaching/courses/trainings, formal for
+compliance and regulated industries.
+
+**Guide character:** an abstract object (glowing orb, crystal, cube, prism) — NEVER a human,
+because abstract objects stay consistent across AI generations. Its body, glow and light MUST
+be the accent color ${ACCENT}. Do NOT derive a color from the topic (no green for forestry,
+no red for safety) — the whole training carries exactly ONE chromatic color, and that is it.
+
+## Visual style (chosen by the user — applies to EVERY film and image prompt)
+${STYLE}
+
+Every FILM and IMAGE prompt you write must carry this look, and the guide character is rendered
+in it too. Do not mix styles between levels — one visual world for the whole training.
 
 ## Language rules
 - All learner-facing text (voiceover scripts, on-screen text, quizzes, feedback) in ${briefing.language}.

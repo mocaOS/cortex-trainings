@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { DEFAULT_VISUAL_STYLE, VISUAL_STYLES, type VisualStyle } from '@cortex-trainings/shared';
 import type { Dict } from '@/lib/i18n';
+
+const STYLE_KEYS = Object.keys(VISUAL_STYLES) as VisualStyle[];
 
 interface Meta {
   collections: Array<{ id: string; name: string }>;
@@ -18,6 +21,7 @@ export function BriefingForm({ dict, defaultLanguage }: { dict: Dict; defaultLan
   const [duration, setDuration] = useState(dict['briefing.duration.standard']);
   const [material, setMaterial] = useState('');
   const [collectionId, setCollectionId] = useState('');
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>(DEFAULT_VISUAL_STYLE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -41,6 +45,7 @@ export function BriefingForm({ dict, defaultLanguage }: { dict: Dict; defaultLan
           audience,
           language,
           duration,
+          visualStyle,
           material: material || undefined,
           collectionId: collectionId || undefined,
         }),
@@ -82,6 +87,21 @@ export function BriefingForm({ dict, defaultLanguage }: { dict: Dict; defaultLan
           <option>{dict['briefing.duration.compact']}</option>
           <option>{dict['briefing.duration.standard']}</option>
           <option>{dict['briefing.duration.full']}</option>
+        </select>
+      </label>
+
+      <label className="field">
+        {dict['briefing.visualStyle']}
+        <span className="hint">{dict['briefing.visualStyleHint']}</span>
+        <select
+          value={visualStyle}
+          onChange={(e) => setVisualStyle(e.target.value as VisualStyle)}
+        >
+          {STYLE_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {dict[`briefing.visualStyle.${key}`] ?? key}
+            </option>
+          ))}
         </select>
       </label>
 

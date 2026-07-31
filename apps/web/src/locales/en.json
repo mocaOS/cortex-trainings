@@ -55,5 +55,11 @@
   "production.resumeHint": "Resumes production at the failed step — completed steps are skipped.",
   "production.download": "Download training",
   "production.downloadHint": "A single offline-capable HTML file — runs on double-click, shareable via mail/Drive/LMS.",
-  "production.refChosen": "Chosen guide character reference"
+  "production.refChosen": "Chosen guide character reference",
+  "briefing.visualStyle": "Visual style",
+  "briefing.visualStyleHint": "Applies to all AI videos and images. Explainer animations are unaffected.",
+  "briefing.visualStyle.3d": "3D render",
+  "briefing.visualStyle.realistic": "Realistic",
+  "briefing.visualStyle.anime": "Anime",
+  "briefing.visualStyle.comic": "Comic"
 }

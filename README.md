@@ -62,3 +62,11 @@ Everything lives on disk under `STORAGE_PATH` (default `apps/web/data`) — proj
 every curriculum version, the production plan, per-step state, and all media. No database:
 the artefacts are the point, so they stay diffable, recoverable, and inspectable. Layout in
 [docs/architecture.md](docs/architecture.md#state-on-disk).
+
+## Credits
+
+The idea for this comes from **Julian Ivanov**, whose skill and video
+[demonstrated the approach](https://youtu.be/gz0PBC2P9eg) — building a complete interactive
+learning unit as a single offline HTML file, with a curriculum written and approved before any
+expensive media is generated. `SKILL.md` is that skill; this repo turns it into a web app that
+sources its content from a knowledge base. Thanks, Julian.

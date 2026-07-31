@@ -1,5 +1,6 @@
 import 'server-only';
 import type { Briefing, ProductionPlan } from '@cortex-trainings/shared';
+import { visualStylePrompt } from '@cortex-trainings/shared';
 import { getVenice } from '../clients';
 import { env } from '../env';
 
@@ -116,9 +117,17 @@ const EXTRACTION_PROMPT = `You convert an approved training curriculum (markdown
 
 Rules:
 - language: the curriculum's target language code (e.g. "de", "en").
-- guideCharacter: precise ENGLISH visual description of the guide character (colors, shape, material, glow), suitable as an image-generation prompt fragment. Never a human.
-- styleBlock: one shared ENGLISH style sentence for all image/video prompts (look, lighting, mood) ending with "no readable text, no captions, no speech, nobody talking".
-- accentColor: a CSS hex color fitting the training's design (from the curriculum if stated, otherwise pick one matching the topic's tone).
+- guideCharacter: precise ENGLISH visual description of the guide character (shape, material,
+  facets, glow), suitable as an image-generation prompt fragment. Never a human.
+  **Its color is fixed: state the accent color given below as the character's body, glow and
+  inner light.** If the curriculum names a different color for the character, IGNORE it and use
+  the accent color — the training carries exactly one chromatic color. Do not mention any other
+  hue (no green, emerald, amber, red …) anywhere in this description.
+- styleBlock: one shared ENGLISH style sentence for all image/video prompts. It MUST restate
+  the visual style given below (verbatim in substance) and name the accent color as the single
+  highlight color, ending with "no readable text, no captions, no speech, nobody talking".
+  Do not substitute a different look, however well it might suit the topic.
+- accentColor: echo the accent color given below verbatim. It is configuration, not a choice.
 - Per level:
   - voiceover: the exact voiceover script from the curriculum (target language).
   - medium "film": fill shots[] with the English prompts; each shot duration is "5s", "10s" or "15s" — sum should be just above the voiceover length. Prepend nothing; include the styleBlock content yourself in each prompt. animationBeats stays [].
@@ -138,13 +147,24 @@ export async function extractPlan(curriculum: string, briefing: Briefing): Promi
       { role: 'system', content: EXTRACTION_PROMPT },
       {
         role: 'user',
-        content: `Briefing: audience "${briefing.audience}", language "${briefing.language}", duration "${briefing.duration}".\n\nCurriculum:\n\n${curriculum}`,
+        content:
+          `Accent color (the training's ONLY chromatic color, use it for the guide character ` +
+          `and every style reference): ${env.accentColor}\n\n` +
+          `Visual style for ALL film and image prompts, including the guide character:\n` +
+          `${visualStylePrompt(briefing.visualStyle)}\n\n` +
+          `Briefing: audience "${briefing.audience}", language "${briefing.language}", ` +
+          `duration "${briefing.duration}".\n\nCurriculum:\n\n${curriculum}`,
       },
     ],
     PLAN_SCHEMA as unknown as { name: string; schema: Record<string, unknown> },
   );
   // The design accent is configuration, not model output.
   plan.accentColor = env.accentColor;
+  // Belt and braces: if a topic-derived hue survived the prompt, restate the accent so the
+  // image models still get an unambiguous instruction.
+  if (!plan.guideCharacter.includes(env.accentColor)) {
+    plan.guideCharacter = `${plan.guideCharacter.trim().replace(/\.$/, '')}. The character's body, glow and inner light are exactly the color ${env.accentColor} — no other hue.`;
+  }
   // Minimal sanity checks — fail loudly rather than produce a broken training.
   if (!plan.levels?.length) throw new Error('Plan extraction produced no levels');
   for (const level of plan.levels) {

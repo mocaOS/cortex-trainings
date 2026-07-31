@@ -55,5 +55,11 @@
   "production.resumeHint": "Setzt die Produktion beim fehlgeschlagenen Schritt fort — fertige Schritte werden übersprungen.",
   "production.download": "Training herunterladen",
   "production.downloadHint": "Eine einzige offline lauffähige HTML-Datei — per Doppelklick abspielbar, teilbar via Mail/Drive/LMS.",
-  "production.refChosen": "Gewähltes Referenzbild der Leitfigur"
+  "production.refChosen": "Gewähltes Referenzbild der Leitfigur",
+  "briefing.visualStyle": "Visualisierungsstil",
+  "briefing.visualStyleHint": "Gilt für alle KI-Videos und Bilder. Erklär-Animationen bleiben davon unberührt.",
+  "briefing.visualStyle.3d": "3D-Render",
+  "briefing.visualStyle.realistic": "Realistisch",
+  "briefing.visualStyle.anime": "Anime",
+  "briefing.visualStyle.comic": "Comic"
 }

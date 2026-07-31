@@ -7,6 +7,34 @@ export function shortTitle(topic: string, words = 4): string {
   return parts.length > words ? `${head} …` : head;
 }
 
+/**
+ * Visual style of all generated imagery. The value is an English prompt fragment shared by
+ * the curriculum author and the plan extractor, so films, images and the guide character
+ * all land in the same visual world. Animations are CSS-rendered and unaffected.
+ */
+export const VISUAL_STYLES = {
+  '3d':
+    'high-end 3D render look, physically based materials, glossy and matte surfaces, soft ' +
+    'studio lighting with crisp specular highlights, subtle depth of field, polished CGI',
+  realistic:
+    'photorealistic cinematic footage look, shot on a full-frame camera, shallow depth of ' +
+    'field, naturalistic lighting, fine film grain, restrained color grading',
+  anime:
+    'modern anime look, clean cel shading, confident line art, flat vibrant colors with soft ' +
+    'gradient skies, expressive composition, Japanese animation aesthetic',
+  comic:
+    'bold comic-book illustration look, strong ink outlines, halftone and cross-hatch shading, ' +
+    'flat graphic color fields, dynamic dramatic angles, printed-page feel',
+} as const;
+
+export type VisualStyle = keyof typeof VISUAL_STYLES;
+
+export const DEFAULT_VISUAL_STYLE: VisualStyle = 'realistic';
+
+export function visualStylePrompt(style: string | undefined): string {
+  return VISUAL_STYLES[(style as VisualStyle) ?? DEFAULT_VISUAL_STYLE] ?? VISUAL_STYLES[DEFAULT_VISUAL_STYLE];
+}
+
 export interface Briefing {
   topic: string;
   audience: string;
@@ -14,6 +42,8 @@ export interface Briefing {
   language: string;
   /** Desired duration, e.g. "~20 min". Drives the level count. */
   duration: string;
+  /** Visual style of all generated imagery. Defaults to `realistic`. */
+  visualStyle?: VisualStyle;
   /** Optional existing material / bullet points from the user. */
   material?: string;
   /** Optional Cortex collection to scope research to. */
