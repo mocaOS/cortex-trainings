@@ -8,6 +8,7 @@ type Params = { params: Promise<{ id: string }> };
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.png': 'image/png',
+  '.webp': 'image/webp',
   '.mp4': 'video/mp4',
   '.mp3': 'audio/mpeg',
 };

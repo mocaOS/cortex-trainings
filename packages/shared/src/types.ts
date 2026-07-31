@@ -50,6 +50,31 @@ export interface Briefing {
   collectionId?: string;
 }
 
+/** The two kinds of optional user-uploaded reference images. */
+export type RefKind = 'character' | 'style';
+
+export const MAX_REF_IMAGES = 3;
+
+/** Vision analysis of one kind of uploaded reference images (persisted in refs.json). */
+export interface RefAnalysis {
+  /** Media-relative paths of the uploaded images, e.g. "refs/character-0.jpg" (1–3). */
+  files: string[];
+  /** English prompt-ready description extracted by the vision model. */
+  description: string;
+  analyzedAt: string;
+}
+
+/**
+ * Optional reference images a user attaches to a project. `character` fixes the guide
+ * character's identity (it keeps its own colors — the accent-color rule yields to it);
+ * `style` fixes the aesthetic of every generated image and film, replacing the preset
+ * visual style. Both are extracted into English descriptions once, at upload time.
+ */
+export interface ProjectRefs {
+  character?: RefAnalysis;
+  style?: RefAnalysis;
+}
+
 export interface CurriculumVersion {
   version: number;
   createdAt: string;

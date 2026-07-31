@@ -12,6 +12,9 @@ export const env = {
   },
   veniceBaseUrl: process.env.VENICE_BASE_URL ?? 'https://api.venice.ai/api/v1',
   veniceAgentModel: process.env.VENICE_AGENT_MODEL ?? 'claude-fable-5',
+  /** Analyzes uploaded reference images; must carry `supportsVision` in the catalog. */
+  veniceVisionModel:
+    process.env.VENICE_VISION_MODEL ?? process.env.VENICE_AGENT_MODEL ?? 'claude-fable-5',
   get cortexBaseUrl() {
     return required('CORTEX_BASE_URL');
   },

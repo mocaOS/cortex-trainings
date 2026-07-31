@@ -4,11 +4,12 @@ import path from 'path';
 import type {
   ProductionPlan,
   ProductionState,
+  ProjectRefs,
   StepId,
   StepState,
 } from '@cortex-trainings/shared';
 import { STEP_ORDER } from '@cortex-trainings/shared';
-import { getCurriculum, getProject, updateProject } from '../store';
+import { getCurriculum, getProject, getRefs, updateProject } from '../store';
 import { env } from '../env';
 import { extractPlan } from './plan';
 import { stepRefImage, applyRefChoice } from './steps/refimage';
@@ -30,6 +31,8 @@ export interface RunContext {
   dir: string; // project dir
   mediaDir: string;
   plan: ProductionPlan | null;
+  /** User-uploaded character/style reference images + their vision analysis. */
+  refs: ProjectRefs;
   log: (step: StepId, message: string) => void;
   setDetail: (step: StepId, detail: string) => void;
   /** Blocks until the UI provides the awaited input. */
@@ -120,12 +123,14 @@ class ProductionRun {
 
     const mediaDir = path.join(this.dir, 'media');
     await fs.mkdir(mediaDir, { recursive: true });
+    const refs = await getRefs(this.projectId);
 
     const ctx: RunContext = {
       projectId: this.projectId,
       dir: this.dir,
       mediaDir,
       plan: null,
+      refs,
       log: (step, message) => this.log(step, message),
       setDetail: (step, detail) => void this.patchStep(step, { detail }),
       waitForInput: <T>(key: 'ref' | 'video') => this.waitForInput<T>(key),
@@ -136,7 +141,9 @@ class ProductionRun {
 
     const stepFns: Record<StepId, () => Promise<void>> = {
       plan: async () => {
-        this.plan = await extractPlan(curriculum, project.briefing, (note) =>
+        if (refs.character) this.log('plan', 'using the uploaded character reference images');
+        if (refs.style) this.log('plan', 'using the uploaded style reference images');
+        this.plan = await extractPlan(curriculum, project.briefing, refs, (note) =>
           this.log('plan', note),
         );
         ctx.plan = this.plan;

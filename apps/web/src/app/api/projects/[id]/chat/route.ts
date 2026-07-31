@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import type { AgentMessage } from '@cortex-trainings/shared';
 import { briefingToFirstUserMessage, runAgent, type AgentEvent } from '@/lib/agent';
-import { appendChat, getChat, getProject, updateProject } from '@/lib/store';
+import { appendChat, getChat, getProject, getRefs, updateProject } from '@/lib/store';
 
 export const maxDuration = 3600;
 
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const chat = await getChat(id);
   const history: AgentMessage[] = chat.map((m) => ({ role: m.role, content: m.content }));
+  const refs = await getRefs(id);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           collectionId: project.briefing.collectionId,
           onCurriculumSaved: (version: number) => send({ type: 'curriculum_saved', version }),
         };
-        for await (const event of runAgent(project.briefing, history, ctx)) {
+        for await (const event of runAgent(project.briefing, history, ctx, refs)) {
           send(event);
           if (event.type === 'assistant') {
             await appendChat(id, {

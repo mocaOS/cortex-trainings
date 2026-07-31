@@ -12,6 +12,7 @@
 │  lib/agent.ts        curriculum agent loop (tool calling)      │
 │  lib/tools.ts        knowledge-base tools + save_curriculum    │
 │  lib/store.ts        file-based project store                  │
+│  lib/refs.ts         vision analysis of uploaded ref images    │
 │  lib/production/     runner (state machine) + steps/           │
 │  api/…/asset,download  proxied media, never a raw file path     │
 └───────┬───────────────────────────────────┬───────────────────┘
@@ -52,9 +53,11 @@ projects/<uuid>/
   chat.json           the conversation with the agent
   plan.json           structured production plan
   production.json     per-step status, quotes, human-input results
+  refs.json           vision analysis of uploaded character/style reference images
   media/
     ref.jpg              chosen guide-character reference
     ref-candidates/      all candidates, kept for later review
+    refs/                uploaded character/style reference images (character-<n>, style-<n>)
     vo/level<n>.mp3      voiceover per level
     vo/level<n>.json     exact sentence timeline
     vo/chunks/           per-sentence audio (cache — a retry re-pays nothing)

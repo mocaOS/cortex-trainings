@@ -24,6 +24,21 @@ export interface ImageGenerateParams {
   format?: 'jpeg' | 'png' | 'webp';
 }
 
+export interface ImageMultiEditParams {
+  /** Sent as `modelId` — the multi-edit schema never adopted the newer `model` field. */
+  model: string;
+  prompt: string;
+  /**
+   * Base64 data URLs or http(s) URLs. The first image is the base; the rest are
+   * references/layers. The per-model maximum is not exposed in the catalog — keep it small.
+   */
+  images: string[];
+  aspectRatio?: string;
+  resolution?: string;
+  quality?: 'low' | 'medium' | 'high';
+  outputFormat?: 'jpeg' | 'png' | 'webp';
+}
+
 export interface TtsParams {
   model: string;
   input: string;
@@ -181,6 +196,28 @@ export class VeniceMedia {
     if (!res.ok) await this.fail(res, 'image/generate');
     const json = (await res.json()) as any;
     return json.images ?? [];
+  }
+
+  /**
+   * Generate an image conditioned on reference images (`POST /image/multi-edit`).
+   * Returns the raw image bytes — the endpoint answers binary, one image per call.
+   */
+  async imageMultiEdit(params: ImageMultiEditParams): Promise<Buffer> {
+    const body = JSON.stringify({
+      modelId: params.model,
+      prompt: params.prompt,
+      images: params.images,
+      safe_mode: false,
+      ...(params.aspectRatio ? { aspect_ratio: params.aspectRatio } : {}),
+      ...(params.resolution ? { resolution: params.resolution } : {}),
+      ...(params.quality ? { quality: params.quality } : {}),
+      ...(params.outputFormat ? { output_format: params.outputFormat } : {}),
+    });
+    const res = await this.withRetry('image/multi-edit', () =>
+      fetch(`${this.baseUrl}/image/multi-edit`, { method: 'POST', headers: this.headers(), body }),
+    );
+    if (!res.ok) await this.fail(res, 'image/multi-edit');
+    return Buffer.from(await res.arrayBuffer());
   }
 
   /** Returns raw audio bytes. */

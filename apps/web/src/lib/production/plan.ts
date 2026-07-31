@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Briefing, PlanInteraction, ProductionPlan } from '@cortex-trainings/shared';
+import type { Briefing, PlanInteraction, ProductionPlan, ProjectRefs } from '@cortex-trainings/shared';
 import { visualStylePrompt } from '@cortex-trainings/shared';
 import { getVenice } from '../clients';
 import { env } from '../env';
@@ -83,11 +83,12 @@ const PLAN_SCHEMA = {
               items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['prompt', 'duration', 'continuesPreviousScene'],
+                required: ['prompt', 'duration', 'continuesPreviousScene', 'featuresCharacter'],
                 properties: {
                   prompt: { type: 'string' },
                   duration: { type: 'string', enum: ['5s', '10s', '15s'] },
                   continuesPreviousScene: { type: 'boolean' },
+                  featuresCharacter: { type: 'boolean' },
                 },
               },
             },
@@ -114,25 +115,45 @@ const PLAN_SCHEMA = {
   },
 } as const;
 
-const EXTRACTION_PROMPT = `You convert an approved training curriculum (markdown) into a machine-readable production plan. Extract faithfully — do NOT invent new content, do NOT rephrase learner-facing text. The curriculum is the binding source.
-
-Rules:
-- language: the curriculum's target language code (e.g. "de", "en").
-- guideCharacter: precise ENGLISH visual description of the guide character (shape, material,
+function extractionPrompt(refs: ProjectRefs): string {
+  const characterRule = refs.character
+    ? `- guideCharacter: the user uploaded reference images of the guide character; their analyzed
+  description is given below. Restate that description (verbatim in substance) as
+  guideCharacter. The character keeps ITS OWN colors exactly as described — do NOT recolor it
+  to the accent color, do NOT replace it with an abstract object, and ignore any conflicting
+  character description in the curriculum.`
+    : `- guideCharacter: precise ENGLISH visual description of the guide character (shape, material,
   facets, glow), suitable as an image-generation prompt fragment. Never a human.
   **Its color is fixed: state the accent color given below as the character's body, glow and
   inner light.** If the curriculum names a different color for the character, IGNORE it and use
   the accent color — the training carries exactly one chromatic color. Do not mention any other
-  hue (no green, emerald, amber, red …) anywhere in this description.
-- styleBlock: one shared ENGLISH style sentence for all image/video prompts. It MUST restate
+  hue (no green, emerald, amber, red …) anywhere in this description.`;
+  const styleRule = refs.style
+    ? `- styleBlock: one shared ENGLISH style sentence for all image/video prompts. It MUST restate
+  the aesthetic given below — extracted from the user's style reference images — verbatim in
+  substance, ending with "no readable text, no captions, no speech, nobody talking". Do not
+  substitute a different look and do not inject colors the aesthetic does not name.`
+    : `- styleBlock: one shared ENGLISH style sentence for all image/video prompts. It MUST restate
   the visual style given below (verbatim in substance) and name the accent color as the single
   highlight color, ending with "no readable text, no captions, no speech, nobody talking".
-  Do not substitute a different look, however well it might suit the topic.
+  Do not substitute a different look, however well it might suit the topic.`;
+
+  return `You convert an approved training curriculum (markdown) into a machine-readable production plan. Extract faithfully — do NOT invent new content, do NOT rephrase learner-facing text. The curriculum is the binding source.
+
+Rules:
+- language: the curriculum's target language code (e.g. "de", "en").
+${characterRule}
+${styleRule}
 - accentColor: echo the accent color given below verbatim. It is configuration, not a choice.
 - Per level:
   - voiceover: the exact voiceover script from the curriculum (target language).
   - medium "film": fill shots[] with the English prompts; each shot duration is "5s", "10s" or "15s" — sum should be just above the voiceover length. Prepend nothing; include the styleBlock content yourself in each prompt. animationBeats stays [].
     Set continuesPreviousScene on every shot: true only when the shot stays in the SAME place with the SAME subject and the action simply carries on (a camera move, a closer angle, the next moment). Set it false for the first shot and for any cut to a different location, subject or time — a forest that becomes a showroom is a cut, not a continuation. Getting this wrong makes the video morph one setting into another inside a single clip.
+    Set featuresCharacter on every shot — **the storyboard decides this, not the character**. Two hard rules, then the judgement call:
+      1. **The FIRST shot of every film MUST have featuresCharacter: false.** Establish the place, the situation or the stakes before any character appears. No exceptions unless the curriculum's own text puts the guide on screen in the opening second.
+      2. **At least half of a film's shots MUST have featuresCharacter: false** — in a 4-shot film that is at least 2, in a 3-shot film at least 2, in a 6-shot film at least 3. Count them before you answer.
+    Beyond that: true only where the guide genuinely serves the shot (acting, reacting, giving human scale); false for establishing shots, close details of objects, environments, processes and abstract concept imagery. A guide in every shot reads as a mascot parade and flattens the storytelling, and the shots that do carry it are stronger for the contrast. A character-free shot is NOT a lesser shot: it carries the same styleBlock, so it stays in exactly the same visual world.
+    In a character-free shot's prompt, do not mention the guide character at all — no hooded figure, no silhouette, no lone wanderer, not even distant or out of focus. Describe the world, the objects, the light and the camera. Describe the world, the objects, the light and the camera.
   - medium "animation": fill animationBeats[] from the beat plan (short on-screen text + the voiceover words at which it appears, both in the target language). shots stays [].
   - medium "image": shots and animationBeats stay []; the level's visual is the imagePrompt.
   - imagePrompt: ENGLISH prompt for this level's interaction-screen image ("" if the curriculum plans none).
@@ -155,24 +176,39 @@ Rules:
   scenario with two buttons, add the plausible third reading it omitted rather than shipping a
   50/50 guess. Only the inherently binary forms (myth_fact, find_mistakes) carry exactly two.
 - cheatSheet: the key takeaways (one string per level, target language).`;
+}
 
 export async function extractPlan(
   curriculum: string,
   briefing: Briefing,
+  refs: ProjectRefs = {},
   /** Reports plan-quality observations that are worth seeing but must not fail the step. */
   onNote: (message: string) => void = () => {},
 ): Promise<ProductionPlan> {
   const venice = getVenice();
+  const accentScope = refs.character
+    ? `Accent color (the training's ONLY chromatic color for UI, animations and highlights — ` +
+      `the user-supplied guide character keeps its own colors): ${env.accentColor}\n\n`
+    : `Accent color (the training's ONLY chromatic color, use it for the guide character ` +
+      `and every style reference): ${env.accentColor}\n\n`;
+  const styleSource = refs.style
+    ? `Visual aesthetic for ALL film and image prompts (extracted from the user's uploaded ` +
+      `style reference images — binding):\n${refs.style.description}\n\n`
+    : `Visual style for ALL film and image prompts, including the guide character:\n` +
+      `${visualStylePrompt(briefing.visualStyle)}\n\n`;
+  const characterSource = refs.character
+    ? `Guide character (analyzed from the user's uploaded reference images — binding):\n` +
+      `${refs.character.description}\n\n`
+    : '';
   const plan = await venice.chatJson<ProductionPlan>(
     [
-      { role: 'system', content: EXTRACTION_PROMPT },
+      { role: 'system', content: extractionPrompt(refs) },
       {
         role: 'user',
         content:
-          `Accent color (the training's ONLY chromatic color, use it for the guide character ` +
-          `and every style reference): ${env.accentColor}\n\n` +
-          `Visual style for ALL film and image prompts, including the guide character:\n` +
-          `${visualStylePrompt(briefing.visualStyle)}\n\n` +
+          accentScope +
+          styleSource +
+          characterSource +
           `Briefing: audience "${briefing.audience}", language "${briefing.language}", ` +
           `duration "${briefing.duration}".\n\nCurriculum:\n\n${curriculum}`,
       },
@@ -182,8 +218,9 @@ export async function extractPlan(
   // The design accent is configuration, not model output.
   plan.accentColor = env.accentColor;
   // Belt and braces: if a topic-derived hue survived the prompt, restate the accent so the
-  // image models still get an unambiguous instruction.
-  if (!plan.guideCharacter.includes(env.accentColor)) {
+  // image models still get an unambiguous instruction. A user-supplied character is exempt —
+  // it keeps its own colors by design.
+  if (!refs.character && !plan.guideCharacter.includes(env.accentColor)) {
     plan.guideCharacter = `${plan.guideCharacter.trim().replace(/\.$/, '')}. The character's body, glow and inner light are exactly the color ${env.accentColor} — no other hue.`;
   }
   // Deterministic backstop for ordering tasks: a leading "Day 1 —" / "Step 2:" / "3." makes the
@@ -200,6 +237,31 @@ export async function extractPlan(
         return stripped.length > 8 ? stripped : option;
       });
     }
+  }
+
+  // Deterministic backstop for the film opening. Conditioning the first shot on the character
+  // reference makes every film open on the same hero portrait of the guide, which is what the
+  // reference image happens to be. The prompt asks for a character-free opening; a measured run
+  // still opened on the character, so enforce it here.
+  //
+  // The flag is only flipped when the prompt does not actually describe the guide: generating a
+  // shot without character references while its prompt still asks for the character would invent
+  // a different one, which is worse than the problem being fixed. When the prompt does describe
+  // it, say so instead of silently doing nothing.
+  const CHARACTER_WORDS =
+    /\b(guide|character|mascot|figure|wanderer|hooded|silhouette|orb|crystal|cube|prism|protagonist|he |she |his |her )/i;
+  for (const level of plan.levels) {
+    const first = level.shots[0];
+    if (!first || first.featuresCharacter === false) continue;
+    if (CHARACTER_WORDS.test(first.prompt)) {
+      onNote(
+        `level ${level.index}: the opening shot is written around the guide character — it will open on it. ` +
+          `An establishing shot without the guide reads better.`,
+      );
+      continue;
+    }
+    first.featuresCharacter = false;
+    onNote(`level ${level.index}: opening shot set to character-free — it establishes the scene`);
   }
 
   // Deterministic backstop for the duplicated final check. Curricula routinely present the final

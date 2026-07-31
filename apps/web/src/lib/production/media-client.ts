@@ -11,10 +11,30 @@ export function getMedia(): VeniceMedia {
 
 export const mediaModels = {
   image: process.env.VENICE_IMAGE_MODEL ?? 'gpt-image-2',
+  /** Renders the guide character from uploaded reference images (`/image/multi-edit`). */
+  imageEdit: process.env.VENICE_IMAGE_EDIT_MODEL ?? 'gpt-image-2-edit',
   /** First shot: character-consistent reference-to-video. */
   videoReference: process.env.VENICE_VIDEO_MODEL ?? 'wan-2-7-reference-to-video',
   /** Follow-up shots: start-frame chaining. */
   videoChain: process.env.VENICE_VIDEO_CHAIN_MODEL ?? 'wan-2-7-image-to-video',
+  /**
+   * Shots the storyboard marks as character-free, when the project has no style reference
+   * images to anchor them with.
+   *
+   * Derived from the configured reference model rather than defaulting to a fixed id, because
+   * the two must stay in the same model family: a Wan clip next to a MiniMax clip inside one
+   * film differs in resolution, frame rate and grade, and the cut is visible. Every family in
+   * the catalog names its variants the same way (`…-reference-to-video` / `…-text-to-video`),
+   * so swapping the suffix lands on the sibling. `VENICE_VIDEO_TEXT_MODEL` overrides it.
+   */
+  get videoText(): string {
+    const explicit = process.env.VENICE_VIDEO_TEXT_MODEL;
+    if (explicit) return explicit;
+    const reference = this.videoReference;
+    return reference.includes('-reference-to-video')
+      ? reference.replace('-reference-to-video', '-text-to-video')
+      : 'wan-2-7-text-to-video';
+  },
   stt: process.env.VENICE_STT_MODEL ?? 'openai/whisper-large-v3',
   ttsFor(language: string): { model: string; voice: string } {
     const lang = language.toLowerCase().slice(0, 2);

@@ -12,6 +12,12 @@ shot prompts, animation beats, image prompt, and the interaction mapped to a sup
 Also extracted once for the whole training: a precise **English** description of the guide
 character, and a shared style block ending in the no-readable-text clause.
 
+**Uploaded reference images override both.** If the project carries character references,
+their vision-extracted description becomes `guideCharacter` and the character keeps its own
+colors (the accent backstop is skipped). If it carries style references, their extracted
+aesthetic becomes the basis of `styleBlock` instead of the preset visual style. The analyses
+were made at upload time and live in the project's `refs.json`.
+
 The accent colour is overwritten with `ACCENT_COLOR` after extraction — design is
 configuration, not a model decision.
 
@@ -27,6 +33,11 @@ changes cost, which is why the quote comes before spending.
 Two candidates of the guide character (`gpt-image-2`, 16:9, 1K, high). **Pick the one without
 baked-in text**: this image conditions every video, so lettering in it bleeds into all of them.
 GPT Image 2 renders text well and therefore likes writing the character's name into the frame.
+
+With **uploaded character references** the candidates are generated differently: two
+`/image/multi-edit` calls (`gpt-image-2-edit`) conditioned on the uploaded images themselves —
+plus the style references, if any — so the anchor carries the real design rather than a textual
+description of it. The pick flow is identical.
 
 Both candidates stay on disk (`media/ref-candidates/`) and remain viewable in the panel
 afterwards, so you can compare the finished videos against what you chose.
@@ -60,13 +71,37 @@ Chaining is **scene-aware**, because the two cases need opposite handling:
 
 - A shot that **continues the previous scene** is generated from its last frame (extracted with
   ffmpeg), prompt prefixed to continue the camera and action. The cut becomes invisible.
-- A shot that **opens a new scene** is generated from the guide-character reference instead, so
-  it cuts cleanly. Chaining across a location change forces the model to morph one setting into
-  another inside a single clip — an early run turned a forest into a furniture showroom mid-shot,
-  which looks like a glitch rather than an edit.
+- A shot that **opens a new scene** is generated from references instead, so it cuts cleanly.
+  Chaining across a location change forces the model to morph one setting into another inside a
+  single clip — an early run turned a forest into a furniture showroom mid-shot, which looks like
+  a glitch rather than an edit.
 
 The plan declares this per shot (`continuesPreviousScene`). Either way it is a chain, never a
 boomerang loop — those look broken because the subject disappears and reappears.
+
+**The storyboard decides whether the guide appears at all.** Each shot also carries
+`featuresCharacter`, and a shot marked `false` receives *no* character references — so
+establishing shots, object details and concept imagery are free of it. This exists because
+conditioning every shot on the character produced a mascot parade: the guide turned up in shots
+written without it, and because the reference image is a hero portrait, every film opened on that
+same portrait. Roughly half the shots of a film should be character-free, and the opening shot
+almost always should be.
+
+A character-free shot still keeps the look. It is generated from the uploaded **style**
+references when the project has them, and otherwise from the text-to-video sibling of the
+reference model with the style block in the prompt. Losing the character must never mean losing
+the aesthetic. Four modes result, logged per shot:
+
+| Mode | When | Generated from |
+|---|---|---|
+| `chain` | continues the previous scene | previous last frame |
+| `character` | a cut where the guide serves the shot | anchor + uploaded character images |
+| `styled` | a cut with no guide, style uploads exist | uploaded style images only |
+| `plain` | a cut with no guide, no style uploads | prompt + style block |
+
+Prompts state explicitly what a reference may contribute — identity only, or palette and
+lighting only — because reference images otherwise dictate framing and subjects too (see
+[venice-notes.md](venice-notes.md)).
 
 Shot durations are clamped to what each model supports (reference-to-video: 5s or 10s; chaining:
 5s, 10s, 15s) and then **grown until the chain covers the voiceover**, because every uncovered
@@ -78,6 +113,13 @@ you confirm.
 Finally the shots are concatenated, trimmed to voiceover + 1s, and the voiceover is laid
 underneath (video padded by cloning the last frame if it's short, audio padded with silence if
 it's long).
+
+Before concat, each clip is checked for **padding the model baked into the frame** and cropped.
+MiniMax H3 composes at ~2:1 and pads to 16:9 with near-white bars; left uncropped they reach the
+learner as what looks like a rendering bug. Clips are then scaled to **fill** 1920×1080 rather
+than fitted — fitting de-padded 2:1 content re-letterboxes it with black bars, which is trading
+the model's white bars for your own. Filling costs ~11% off the sides of a wide composition.
+Every crop is logged. See [venice-notes.md](venice-notes.md) for the measurements.
 
 **Everything is normalised to 1920×1080 at 25 fps during concat and mux**, whatever the model
 produced — MiniMax H3 delivers 2560×1440 at 24 fps and is downscaled. This is deliberate, not an

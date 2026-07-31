@@ -26,7 +26,20 @@ Four inputs, collected as a form because the skill forbids guessing them:
 - **Content language** — the language of all learner-facing text and voice.
 - **Duration** — determines the level count (3–4 / 5–6 / 7–8 levels).
 
-Optional: existing material to build on, and a collection to scope research to.
+Optional: existing material to build on, a collection to scope research to, and **reference
+images** —
+
+- **Character references (up to 3 images):** your own guide character (mascot, figure,
+  product). A vision model extracts a precise English description at upload time; the
+  character then appears across all films and images instead of the generated abstract
+  character, keeping its own colors.
+- **Style references (up to 3 images):** define the aesthetic. The extracted style
+  description replaces the preset visual style in every film and image prompt.
+
+Both can also be added, replaced or removed from the project page any time **before
+production starts** (they are locked once media exists, because the plan was extracted from
+them). With both supplied, your character is visualized in the worlds the script describes,
+rendered in the aesthetic of the style references.
 
 Some things are stated rather than asked, and appear in the curriculum's fact sheet so they can
 be objected to: 16:9 video, dark design with one accent colour, XP and level badges, and form
@@ -84,7 +97,21 @@ Details and costs: [production-pipeline.md](production-pipeline.md).
 
 ## Guide character
 
-Every training has a guide that addresses learners directly, and it is always an **abstract
+Every training has a guide that addresses learners directly. By default it is an **abstract
 object** — a glowing orb, a crystal, a data cube — never a human. Abstract objects stay
 consistent across AI generations in a way people do not; a human character drifts between
 shots and breaks the illusion.
+
+Uploading character references overrides the default: the training then carries **your**
+character, described by a vision model and anchored by the uploaded images themselves (the
+reference image is generated *from* them, and the video model receives them as extra
+consistency references).
+
+**The guide does not appear in every shot.** The storyboard decides per shot, and roughly half of
+a film's shots — establishing shots, object details, concept imagery — are deliberately
+character-free, as is the opening shot. Consistency is there to serve the story, not to put the
+character on screen at all times; a character-free shot still carries the same visual style, so
+it stays in the same world. It also keeps its own colors — the single-accent rule stays in force
+for the UI and animations, but a user-supplied character is not recolored. Be aware that the
+consistency warning above still applies: a detailed human character will drift more between
+shots than an abstract or strongly stylized one.

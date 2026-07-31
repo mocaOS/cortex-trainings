@@ -115,6 +115,40 @@ lettering on props. Since it is unreadable rather than wrong-language, it is the
 failure mode — but do not rely on generative video for any text a learner must read. That is
 what the locally rendered animations are for.
 
+### MiniMax H3 bakes near-white padding into the frame
+
+Verified across eight shots: MiniMax composes at roughly **2:1** and pads to its mandatory 16:9
+with **near-white bars** (measured mean 203–255), inside the returned 2560×1440 video. It is not
+a container flag — it is pixels, so it survives into anything downstream.
+
+Details that cost debugging time:
+
+- **The padding is not constant within a clip.** A bar present at 4s was gone by the one-third
+  mark, so detecting it from a single frame leaves a bar in the frames that were not sampled.
+  `detectPadding` samples five timestamps and takes the widest band per side.
+- **Chaining propagates it.** A shot generated from the previous shot's last frame inherits that
+  frame's bars, which is why one clip showed a four-sided border while its siblings had only
+  top/bottom ones.
+- **The boundary row is a blend** (around mean 145), so a brightness test alone leaves a visible
+  hairline. Hence the trailing inset.
+- **An off-ratio reference image appears to trigger it.** The bars showed up once portrait
+  uploads (982×1242) were passed alongside the 16:9 anchor; reference images are now letterboxed
+  to 16:9 before being sent. Not proven — one shot came back clean — but the mechanism fits and
+  the inputs themselves have no borders.
+- **Do not "fix" it by fitting to 1920×1080.** `force_original_aspect_ratio=decrease` plus `pad`
+  re-letterboxes de-padded ~2:1 content with *black* bars, trading the model's white bars for
+  your own. Scale to fill (`increase` + `crop`) instead; it costs ~11% off the sides.
+- **Dark padding is not auto-detected.** In near-black footage a genuine edge column is often
+  flat black too: a flatness test cropped 283px off a shot that had no padding at all.
+
+### Reference images are read as instructions about everything
+
+`reference_image_urls` conditions far more than identity. A hero-framed character reference makes
+reference-to-video reproduce that *framing*, so every clip opens on the same centered portrait of
+the character regardless of the shot's own described composition. Style references likewise bleed
+their subjects. Both need the prompt to say explicitly what to take from them — identity only, or
+palette/lighting/texture only — and the negative prompt to name the portrait framing.
+
 ## Images — `gpt-image-2`
 
 Same model the skill originally used, available natively. 16:9 with `aspect_ratio`, 1K via
@@ -123,6 +157,30 @@ at high quality; `qwen-image` is $0.03 if budget matters more than text fidelity
 
 It renders text *well*, which is precisely the hazard for a reference image — hence generating
 two candidates and having a human pick the clean one.
+
+## Image editing — `/image/multi-edit`
+
+Used to render an **uploaded** guide character into the training's world (only when a project
+has character reference images). Verified live (2026-07-31, `gpt-image-2-edit`):
+
+- The model field is **`modelId`** — the multi-edit request schema never adopted the newer
+  `model` field that `/image/edit` uses, and `additionalProperties: false` means sending
+  `model` is a 400, not a synonym.
+- JSON body takes `images` as base64 strings, data URLs or http(s) URLs; the **first image is
+  the base**, the rest are references/layers. The per-model maximum is not exposed in the
+  catalog — keep the list small (we send ≤6).
+- The 200 response is the **raw image binary** (`image/jpeg` or `image/png`), not JSON with a
+  base64 field like `/image/generate`. One image per call — two candidates = two calls.
+- `aspect_ratio: "16:9"`, `resolution: "1K"`, `quality: "high"`, `output_format: "jpeg"` all
+  behave as documented for `gpt-image-2-edit`.
+
+## Vision — multimodal chat
+
+`claude-fable-5` carries `supportsVision` and `supportsMultipleImages` and accepts
+OpenAI-style `image_url` content parts (data URLs work), **including together with
+`response_format: json_schema`** — verified live. One trap: a vision model given zero images
+does not error, it answers with a polite non-answer that parses fine. The analysis code
+refuses an empty image list for exactly that reason.
 
 ## Rate limits and billing
 

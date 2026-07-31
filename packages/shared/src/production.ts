@@ -43,6 +43,14 @@ export interface PlanShot {
    * across a scene change forces the model to morph one setting into another mid-clip.
    */
   continuesPreviousScene?: boolean;
+  /**
+   * Whether the guide character appears in this shot. False keeps the character out entirely:
+   * the shot is generated without character references, so establishing shots, details and
+   * concept imagery are free of it. The story decides — a character in every single shot reads
+   * as a mascot parade and costs the storyboard its flexibility, while the shared style block
+   * keeps a character-free shot in the same visual world.
+   */
+  featuresCharacter?: boolean;
 }
 
 export interface PlanAnimationBeat {

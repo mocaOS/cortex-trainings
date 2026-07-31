@@ -5,6 +5,7 @@ import type { ChatMessage, Project } from '@cortex-trainings/shared';
 import { shortTitle } from '@cortex-trainings/shared';
 import type { Dict } from '@/lib/i18n';
 import { ProductionPanel } from './ProductionPanel';
+import { RefImages } from './RefImages';
 
 type FeedItem =
   | { kind: 'user' | 'assistant'; text: string }
@@ -208,6 +209,12 @@ export function Workspace({ dict, projectId }: { dict: Dict; projectId: string }
           {approved && <ProductionPanel dict={dict} projectId={projectId} />}
         </section>
       </div>
+
+      <RefImages
+        dict={dict}
+        projectId={projectId}
+        locked={['producing', 'done'].includes(project.status)}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import 'server-only';
-import type { AgentMessage, Briefing, ToolCall } from '@cortex-trainings/shared';
+import type { AgentMessage, Briefing, ProjectRefs, ToolCall } from '@cortex-trainings/shared';
 import { visualStylePrompt } from '@cortex-trainings/shared';
 import { getVenice } from './clients';
 import { executeTool, toolDefinitions, type ToolContext } from './tools';
@@ -22,9 +22,23 @@ const MAX_ITERATIONS = 40;
  */
 const MAX_OUTPUT_TOKENS = Number(process.env.VENICE_MAX_OUTPUT_TOKENS ?? '64000');
 
-function systemPrompt(briefing: Briefing): string {
+function systemPrompt(briefing: Briefing, refs: ProjectRefs): string {
   const ACCENT = process.env.ACCENT_COLOR?.trim() || 'oklch(0.79 0.18 70.67)';
-  const STYLE = visualStylePrompt(briefing.visualStyle);
+  const STYLE = refs.style
+    ? `${refs.style.description}\n(Extracted from the user's uploaded style reference images — ` +
+      `this exact aesthetic is binding for every film and image prompt; do not fall back to a ` +
+      `generic look.)`
+    : visualStylePrompt(briefing.visualStyle);
+  const CHARACTER = refs.character
+    ? `**Guide character (user-supplied):** the user uploaded reference images of the character
+that must appear across all media. It looks like this: ${refs.character.description}
+Use THIS character throughout — never redesign it, never swap it for an abstract object, and
+keep ITS OWN colors exactly as described. The accent color ${ACCENT} still rules the UI,
+animations and highlights, but the character is not recolored to it.`
+    : `**Guide character:** an abstract object (glowing orb, crystal, cube, prism) — NEVER a human,
+because abstract objects stay consistent across AI generations. Its body, glow and light MUST
+be the accent color ${ACCENT}. Do NOT derive a color from the topic (no green for forestry,
+no red for safety) — the whole training carries exactly ONE chromatic color, and that is it.`;
   return `You are the curriculum author of "Cortex Trainings", a web application that produces
 story-driven, interactive learning units as single offline HTML files. You are executing
 PART 1 of the workflow: writing the curriculum document. Part 1 costs nothing — media
@@ -57,16 +71,26 @@ Voiceover word count: ~2.5 words/second.
 color. XP + level badges. Form of address: casual for coaching/courses/trainings, formal for
 compliance and regulated industries.
 
-**Guide character:** an abstract object (glowing orb, crystal, cube, prism) — NEVER a human,
-because abstract objects stay consistent across AI generations. Its body, glow and light MUST
-be the accent color ${ACCENT}. Do NOT derive a color from the topic (no green for forestry,
-no red for safety) — the whole training carries exactly ONE chromatic color, and that is it.
+${CHARACTER}
 
 ## Visual style (chosen by the user — applies to EVERY film and image prompt)
 ${STYLE}
 
 Every FILM and IMAGE prompt you write must carry this look, and the guide character is rendered
 in it too. Do not mix styles between levels — one visual world for the whole training.
+
+## Storyboarding a FILM — the content leads, not the character
+The guide is a device for carrying the story, never the reason for a shot. For every shot, state
+explicitly whether the guide appears ("with guide" / "no guide"). Two hard rules:
+1. **The FIRST shot of every film is "no guide".** Establish the place, situation or stakes first.
+   Opening on the guide makes every film start on the same portrait of it, which gets tiring fast
+   and buries the actual subject.
+2. **At least half the shots of a film are "no guide"** — count them as you write.
+Otherwise: "no guide" for establishing shots, close details of objects, environments, processes
+and abstract concept imagery; "with guide" only where it genuinely serves the shot (acting,
+reacting, giving human scale). A character-free shot is not a weaker shot — it carries the same
+visual style, so it stays in the same world. Write those prompts about the world only: no hooded
+figure, no silhouette, no lone observer, not even distant or out of focus.
 
 ## Language rules
 - All learner-facing text (voiceover scripts, on-screen text, quizzes, feedback) in ${briefing.language}.
@@ -161,10 +185,11 @@ export async function* runAgent(
   briefing: Briefing,
   history: AgentMessage[],
   ctx: ToolContext,
+  refs: ProjectRefs = {},
 ): AsyncGenerator<AgentEvent> {
   const venice = getVenice();
   const messages: AgentMessage[] = [
-    { role: 'system', content: systemPrompt(briefing) },
+    { role: 'system', content: systemPrompt(briefing, refs) },
     ...history,
   ];
 

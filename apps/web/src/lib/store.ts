@@ -2,8 +2,16 @@ import 'server-only';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import type { Briefing, ChatMessage, CurriculumVersion, Project } from '@cortex-trainings/shared';
-import { shortTitle } from '@cortex-trainings/shared';
+import type {
+  Briefing,
+  ChatMessage,
+  CurriculumVersion,
+  Project,
+  ProjectRefs,
+  RefAnalysis,
+  RefKind,
+} from '@cortex-trainings/shared';
+import { MAX_REF_IMAGES, shortTitle } from '@cortex-trainings/shared';
 import { env } from './env';
 
 /**
@@ -111,6 +119,97 @@ export async function getCurriculum(id: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Reference images live under media/refs/ so the existing asset route serves them; the
+ * vision analysis lives in refs.json next to project.json.
+ */
+const REF_MIME_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
+export function refMimeToExt(mime: string): string | null {
+  return REF_MIME_EXT[mime] ?? null;
+}
+
+function refMimeFromExt(file: string): string {
+  const ext = path.extname(file).toLowerCase();
+  return ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+}
+
+export async function getRefs(id: string): Promise<ProjectRefs> {
+  return (await readJson<ProjectRefs>(path.join(projectDir(id), 'refs.json'))) ?? {};
+}
+
+async function writeRefs(id: string, refs: ProjectRefs): Promise<void> {
+  await fs.writeFile(path.join(projectDir(id), 'refs.json'), JSON.stringify(refs, null, 2));
+}
+
+/** Replaces the stored images of one kind; returns their media-relative paths. */
+export async function saveRefImages(
+  id: string,
+  kind: RefKind,
+  images: Array<{ bytes: Buffer; mime: string }>,
+): Promise<string[]> {
+  if (images.length === 0 || images.length > MAX_REF_IMAGES) {
+    throw new Error(`Expected 1–${MAX_REF_IMAGES} images, got ${images.length}`);
+  }
+  await deleteRefImages(id, kind);
+  const dir = path.join(projectDir(id), 'media', 'refs');
+  await fs.mkdir(dir, { recursive: true });
+  const files: string[] = [];
+  for (const [i, img] of images.entries()) {
+    const ext = refMimeToExt(img.mime);
+    if (!ext) throw new Error(`Unsupported image type: ${img.mime}`);
+    const rel = `refs/${kind}-${i}${ext}`;
+    await fs.writeFile(path.join(projectDir(id), 'media', rel), img.bytes);
+    files.push(rel);
+  }
+  return files;
+}
+
+export async function saveRefAnalysis(id: string, kind: RefKind, analysis: RefAnalysis): Promise<void> {
+  const refs = await getRefs(id);
+  refs[kind] = analysis;
+  await writeRefs(id, refs);
+}
+
+/** Removes one kind's images and its refs.json entry. */
+export async function deleteRefImages(id: string, kind: RefKind): Promise<void> {
+  const refs = await getRefs(id);
+  const dir = path.join(projectDir(id), 'media', 'refs');
+  // Sweep by pattern, not just the recorded list — a failed upload may have left files behind.
+  let entries: string[] = [];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    /* nothing uploaded yet */
+  }
+  await Promise.all(
+    entries
+      .filter((f) => f.startsWith(`${kind}-`))
+      .map((f) => fs.rm(path.join(dir, f), { force: true })),
+  );
+  if (refs[kind]) {
+    delete refs[kind];
+    await writeRefs(id, refs);
+  }
+}
+
+/** The stored images of one kind as data URLs (for vision analysis and media generation). */
+export async function refImageDataUrls(id: string, kind: RefKind): Promise<string[]> {
+  const entry = (await getRefs(id))[kind];
+  if (!entry) return [];
+  const mediaRoot = path.join(projectDir(id), 'media');
+  return Promise.all(
+    entry.files.map(async (rel) => {
+      const buf = await fs.readFile(path.join(mediaRoot, rel));
+      return `data:${refMimeFromExt(rel)};base64,${buf.toString('base64')}`;
+    }),
+  );
 }
 
 export async function getChat(id: string): Promise<ChatMessage[]> {

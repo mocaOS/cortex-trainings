@@ -28,6 +28,10 @@ image, and confirming the live video cost quote. See [docs/workflow.md](docs/wor
 
 **1. Briefing** — four inputs the app refuses to guess (topic, audience, language, duration),
 plus the visual style for all generated media and an optional collection to scope research to.
+Optionally, upload up to 3 images of **your own guide character** and up to 3 **style
+references**: a vision model extracts both into prompt text, your character then appears
+across all films and images (rendered from the actual uploads, keeping its own colors), and
+everything is generated in the referenced aesthetic instead of the preset style.
 
 ![Briefing form](public/1.jpeg)
 

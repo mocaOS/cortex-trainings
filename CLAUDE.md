@@ -32,7 +32,8 @@ Runtime needs: Node 22+, ffmpeg/ffprobe on PATH, Playwright Chromium
 apps/web/src/lib/            server-only core
   agent.ts                   curriculum agent loop (tool calling)
   tools.ts                   the agent's tools + their executors
-  store.ts                   file-based project store
+  store.ts                   file-based project store (incl. uploaded reference images)
+  refs.ts                    vision analysis of uploaded character/style reference images
   production/runner.ts       production state machine, SSE, resume
   production/steps/          one file per pipeline step
   production/steps/template.ts   the generated training's HTML/CSS/JS

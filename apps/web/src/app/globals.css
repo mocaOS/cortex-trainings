@@ -577,6 +577,63 @@ select:focus {
   font-size: 0.85rem;
 }
 
+/* Uploaded character/style reference images. */
+.ref-group {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.ref-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.ref-group-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.ref-group-actions .btn {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.ref-thumbs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.ref-thumbs img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ref-analysis {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.ref-analysis summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+
+.ref-analysis summary:hover {
+  color: var(--foreground);
+}
+
+.ref-analysis p {
+  margin: 0.4rem 0 0;
+}
+
 /* Automated click-through result — including what it did NOT cover. */
 .qa-result {
   margin-top: 0.9rem;
