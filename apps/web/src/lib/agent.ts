@@ -84,6 +84,24 @@ find-the-N-mistakes · drag & drop into categories · scenario quiz with 2 butto
 timeline · branching story (3 options, consequence feedback) · rapid fire with timer ·
 sorting/ordering task · final check (8–10 mixed questions) at the end.
 
+## Interaction quality — the rules that separate a real exercise from busywork
+
+1. **Never let an item reveal its own answer.** If a matching item says "the sales team's
+   folders in Google Drive" and the category is "Google Drive Sync", nothing is being taught.
+   Describe items by what they ARE, not by where they live or what they are called.
+2. **Ordering tasks must not carry their order.** No "Day 1", "Step 2", "Month 6", "Phase 3",
+   "First/Then/Finally", no numbering. If the sequence is readable from labels, the learner
+   sorts numbers instead of reasoning about the process. Describe each step by what HAPPENS.
+3. **Distractors must be plausible.** A wrong option nobody would pick adds nothing; each
+   should be something a real learner might genuinely believe.
+4. **The final check is consolidation, not a rerun.** Do NOT reuse the level interactions'
+   questions or rephrase them lightly. Write FRESH questions that test the key takeaways —
+   ideally combining two levels, applying a rule to a new situation, or asking "what would you
+   do if…". A learner who understood the material should pass; a learner who only remembers
+   the earlier quiz screens should not.
+5. **Feedback is per item.** If several items share one resolution sentence, the exercise is
+   one item pretending to be several.
+
 ## curriculum.md structure (write in ${briefing.language}; this exact order)
 1. Fact sheet — topic, audience, language, duration, form of address, guide character, state/date
 2. Learning objectives — overarching plus one per level ("Learners can …")

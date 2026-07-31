@@ -155,6 +155,20 @@ export function ProductionPanel({ dict, projectId }: { dict: Dict; projectId: st
         </div>
       )}
 
+      {state.qa && (
+        <div className="qa-result">
+          <span className={state.qa.passed ? 'ok' : 'bad'}>
+            {state.qa.passed ? `✓ ${dict['production.qaPassed']}` : '✕'}
+          </span>{' '}
+          <span className="muted">{state.qa.summary}</span>
+          {state.qa.notCovered && (
+            <div className="muted" style={{ fontSize: '0.76rem', marginTop: '0.3rem' }}>
+              {dict['production.qaNotCovered']}: {state.qa.notCovered}
+            </div>
+          )}
+        </div>
+      )}
+
       {done && state.outputFile && (
         <div className="approve-bar" style={{ marginTop: '1rem' }}>
           <a className="btn btn-primary" href={`/api/projects/${projectId}/download`}>

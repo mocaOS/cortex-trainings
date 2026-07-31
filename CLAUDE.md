@@ -50,7 +50,12 @@ docs/                        architecture, configuration, pipeline, provider not
   mid-run. Wait for the run to stop, or you will debug ghosts.
 - **Stop the dev server before `npm run build`.** They share `apps/web/.next`; running both
   breaks the dev server with manifest ENOENTs and fails the build on `/404` prerendering.
-  Neither error means your code is broken.
+  Neither error means your code is broken — `rm -rf apps/web/.next` and restart dev.
+- **Never `pkill -f <pattern>` when the pattern appears in your own command line** — the shell
+  kills itself mid-script (exit 144). Kill by port (`lsof -ti:3000`) or by explicit PID.
+- **A disconnected client aborts an agent run.** The SSE route drives the agent loop, so if the
+  browser (or curl) goes away mid-run, the next event throws on a closed stream and the run ends
+  without saving. Long revisions should be started somewhere that won't be interrupted.
 - **`STORAGE_PATH` defaults to `./data`, resolved relative to `apps/web/`.** Set an absolute
   path in production.
 - **The production runner lives in `globalThis`** so HMR doesn't lose an in-flight run; disk

@@ -8,6 +8,7 @@ export type InteractionKind =
   | 'sort_order' // bring items into the right order
   | 'find_mistakes' // click the wrong statements among correct ones
   | 'slider' // self-assessment, no wrong answer
+  | 'match_pairs' // assign each item to its category (drag & drop / tap to assign)
   | 'final_check'; // 8–10 mixed questions
 
 export interface PlanInteraction {
@@ -36,6 +37,12 @@ export interface PlanShot {
   prompt: string;
   /** "5s" | "10s" | "15s" — chained shots sum just above the voiceover length. */
   duration: string;
+  /**
+   * True when this shot continues the previous one's scene (same place, continuing action),
+   * so it can be generated from its last frame. False for a cut to a new location — chaining
+   * across a scene change forces the model to morph one setting into another mid-clip.
+   */
+  continuesPreviousScene?: boolean;
 }
 
 export interface PlanAnimationBeat {
@@ -82,7 +89,8 @@ export type StepId =
   | 'films'
   | 'animations'
   | 'images'
-  | 'assemble';
+  | 'assemble'
+  | 'qa';
 
 export type StepStatus = 'pending' | 'running' | 'waiting_input' | 'completed' | 'failed';
 
@@ -110,6 +118,8 @@ export interface ProductionState {
   videoConfirmed?: boolean;
   /** Relative path of the final HTML inside the project dir. */
   outputFile?: string;
+  /** Result of the automated click-through of the produced file. */
+  qa?: { passed: boolean; summary: string; notCovered: string };
   updatedAt: string;
 }
 
@@ -121,4 +131,5 @@ export const STEP_ORDER: StepId[] = [
   'animations',
   'images',
   'assemble',
+  'qa',
 ];

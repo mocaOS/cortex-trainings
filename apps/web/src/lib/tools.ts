@@ -1,13 +1,19 @@
 import 'server-only';
 import type { ToolDefinition } from '@cortex-trainings/shared';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { getCortex } from './clients';
 import { saveCurriculum } from './store';
+import { env } from './env';
+import { describeDrift, detectDrift, isDirty, staleMedia } from './production/drift';
 
 export interface ToolContext {
   projectId: string;
   collectionId?: string;
   /** Set by the save_curriculum executor so the route can notify the client. */
   onCurriculumSaved?: (version: number) => void;
+  /** Fired when a revision invalidated already-produced media. */
+  onMediaInvalidated?: (drift: string, files: string[]) => void;
 }
 
 export const toolDefinitions: ToolDefinition[] = [
@@ -166,8 +172,28 @@ export async function executeTool(
           `(${markdown.trim().length} chars). Send the COMPLETE curriculum document.`
         );
       }
+      // If media was already produced from an earlier version, a change to narration, a
+      // title or a film prompt makes that media wrong. Detect it and delete exactly what
+      // is now stale, rather than believing a claim that nothing important changed.
+      const projectDir = path.resolve(env.storagePath, 'projects', ctx.projectId);
+      const drift = await detectDrift(projectDir, markdown);
       const entry = await saveCurriculum(ctx.projectId, markdown);
       ctx.onCurriculumSaved?.(entry.version);
+
+      if (drift && isDirty(drift)) {
+        const stale = staleMedia(drift);
+        await Promise.all(
+          stale.map((rel) => fs.rm(path.join(projectDir, 'media', rel), { force: true })),
+        );
+        ctx.onMediaInvalidated?.(describeDrift(drift), stale);
+        return (
+          `Curriculum saved as version ${entry.version}. ` +
+          `NOTE: this revision changed content that media was already produced from ` +
+          `(${describeDrift(drift)}), so ${stale.length} produced file(s) were discarded and ` +
+          `will be regenerated — video regeneration costs money. Tell the user which levels ` +
+          `are affected and why.`
+        );
+      }
       return `Curriculum saved as version ${entry.version}.`;
     }
     default:

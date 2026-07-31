@@ -14,6 +14,8 @@ interface ShotJob {
   prompt: string;
   duration: string; // clamped to the executing model's options
   model: string;
+  /** Continue the previous shot's scene from its last frame, rather than cut. */
+  continues: boolean;
 }
 
 const CHAIN_TIERS = [5, 10, 15];
@@ -22,15 +24,23 @@ const REFERENCE_TIERS = [5, 10]; // reference-to-video supports 5s/10s only
 const secs = (d: string) => Number(d.replace('s', ''));
 
 /**
- * Shot 1 of a sequence uses reference-to-video (character consistency, 5s/10s only);
- * follow-up shots chain via image-to-video from the previous last frame (5s/10s/15s).
- * The chain is then stretched to cover the voiceover — every second short of it would
- * otherwise become a frozen last frame.
+ * Builds the shot list for a film level.
+ *
+ * A shot that continues the previous scene is generated from its last frame
+ * (image-to-video, 5/10/15s) so the cut is invisible. A shot that opens a new scene uses
+ * reference-to-video with the guide-character image (5/10s only) so it cuts cleanly instead
+ * of morphing one setting into another.
+ *
+ * Durations are then grown to cover the voiceover — every uncovered second becomes a frozen
+ * last frame.
  */
 async function shotJobs(ctx: RunContext, level: PlanLevel): Promise<ShotJob[]> {
   const jobs: ShotJob[] = level.shots.map((shot, i) => {
-    const first = i === 0;
-    const tiers = first ? REFERENCE_TIERS : CHAIN_TIERS;
+    // Chain from the previous frame only within one scene. Across a cut, generate from the
+    // guide-character reference instead — feeding a forest frame to a showroom prompt makes
+    // the clip morph between settings rather than cutting cleanly.
+    const continues = i > 0 && shot.continuesPreviousScene === true;
+    const tiers = continues ? CHAIN_TIERS : REFERENCE_TIERS;
     const wanted = secs(shot.duration);
     const allowed = tiers.includes(wanted) ? wanted : Math.max(...tiers.filter((t) => t <= wanted)) || tiers[0];
     return {
@@ -38,7 +48,8 @@ async function shotJobs(ctx: RunContext, level: PlanLevel): Promise<ShotJob[]> {
       shotIndex: i,
       prompt: shot.prompt,
       duration: `${allowed}s`,
-      model: first ? mediaModels.videoReference : mediaModels.videoChain,
+      model: continues ? mediaModels.videoChain : mediaModels.videoReference,
+      continues,
     };
   });
 
@@ -46,7 +57,7 @@ async function shotJobs(ctx: RunContext, level: PlanLevel): Promise<ShotJob[]> {
   const total = () => jobs.reduce((sum, j) => sum + secs(j.duration), 0);
   // Grow the later shots (longest tier available) until the chain covers the narration.
   for (let i = jobs.length - 1; i >= 0 && vo.duration - total() > 2; i--) {
-    const tiers = i === 0 ? REFERENCE_TIERS : CHAIN_TIERS;
+    const tiers = jobs[i].continues ? CHAIN_TIERS : REFERENCE_TIERS;
     for (const tier of tiers) {
       if (tier > secs(jobs[i].duration) && vo.duration - total() > 2) {
         jobs[i].duration = `${tier}s`;
@@ -150,7 +161,6 @@ export async function stepFilms(ctx: RunContext): Promise<void> {
         await fs.access(clipFile);
         ctx.log('films', `${label}: cached`);
       } catch {
-        const isFirst = job.shotIndex === 0;
         let queueId: string;
         let model = job.model;
 
@@ -160,18 +170,21 @@ export async function stepFilms(ctx: RunContext): Promise<void> {
           model = ticket.model;
           ctx.log('films', `${label}: resuming queued job ${queueId} — not paying twice`);
         } else {
-          const prompt = isFirst
-            ? job.prompt
-            : `SHOT: continuing seamlessly from the start frame — ${job.prompt}`;
-          ctx.log('films', `${label}: queueing (${job.model}, ${job.duration})`);
+          const prompt = job.continues
+            ? `SHOT: continuing seamlessly from the start frame — ${job.prompt}`
+            : job.prompt;
+          ctx.log(
+            'films',
+            `${label}: queueing (${job.model}, ${job.duration}, ${job.continues ? 'continues scene' : 'new scene'})`,
+          );
           const queued = await media.videoQueue({
             model: job.model,
             prompt,
             duration: job.duration,
             resolution: mediaModels.videoResolution,
-            ...(isFirst
-              ? { referenceImageUrls: [refUrl] }
-              : { imageUrl: lastFrameUrl ?? refUrl }),
+            ...(job.continues && lastFrameUrl
+              ? { imageUrl: lastFrameUrl }
+              : { referenceImageUrls: [refUrl] }),
             negativePrompt: 'readable text, captions, subtitles, letters, logos, watermarks, speech',
           });
           queueId = queued.queueId;

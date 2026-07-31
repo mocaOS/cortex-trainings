@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getDict, getLang } from '@/lib/i18n';
+import { BackToStart } from '@/components/BackToStart';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {dict['app.title']}
           </Link>
           <nav>
-            <Link href="/">{dict['nav.projects']}</Link>
+            <BackToStart label={dict['nav.backToStart']} />
             <Link href="/projects/new" className="btn btn-primary">
               {dict['nav.newProject']}
             </Link>

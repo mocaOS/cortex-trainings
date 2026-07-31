@@ -70,7 +70,46 @@ export function beatTimes(beats: PlanAnimationBeat[], vo: VoiceoverInfo): number
   return times;
 }
 
+const STAGE_W = 1920;
+const STAGE_H = 1080;
+const PAD_X = 120;
+const PAD_Y = 96;
+/** The orb sits top-right; the title must not run under it. */
+const ORB_CLEARANCE = 240;
+const TITLE_W = STAGE_W - PAD_X * 2 - ORB_CLEARANCE;
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+/**
+ * Deterministic fit. Titles vary from a few words to a full clause (German
+ * compounds especially), and beat counts from 3 to 8, so nothing here can be a
+ * fixed pixel value — a too-long title used to clip off-canvas.
+ */
+function fitLayout(level: PlanLevel): {
+  titleSize: number;
+  beatSize: number;
+  gap: number;
+  dot: number;
+} {
+  // ~0.53em average advance for bold Inter-ish text; wrap to a second line if needed.
+  const titleSize = clamp(Math.floor(TITLE_W / (level.title.length * 0.53)), 30, 64);
+  const titleLines = level.title.length * titleSize * 0.53 > TITLE_W ? 2 : 1;
+  const titleBlock = titleLines * titleSize * 1.2 + 56; // + rule and its margin
+
+  const available = STAGE_H - PAD_Y * 2 - titleBlock;
+  const n = Math.max(level.animationBeats.length, 1);
+  let beatSize = 44;
+  let gap = 42;
+  const needed = () => n * beatSize * 1.35 + (n - 1) * gap;
+  while (needed() > available && beatSize > 24) {
+    beatSize -= 2;
+    gap = Math.max(14, gap - 3);
+  }
+  return { titleSize, beatSize, gap, dot: Math.round(beatSize * 0.5) };
+}
+
 function sceneHtml(level: PlanLevel, times: number[], accent: string): string {
+  const { titleSize, beatSize, gap, dot } = fitLayout(level);
   const items = level.animationBeats
     .map(
       (beat, i) => `
@@ -85,22 +124,27 @@ function sceneHtml(level: PlanLevel, times: number[], accent: string): string {
 <head>
 <meta charset="utf-8">
 <style>
-  html,body { margin:0; width:1920px; height:1080px; background:#101014; overflow:hidden;
+  html,body { margin:0; width:${STAGE_W}px; height:${STAGE_H}px; background:#101014; overflow:hidden;
     font-family:system-ui,-apple-system,'Segoe UI',sans-serif; color:#f2f3f7; }
-  .stage { box-sizing:border-box; width:1920px; height:1080px; padding:96px 120px; position:relative; }
-  .orb { position:absolute; top:84px; right:120px; width:96px; height:96px; border-radius:50%;
+  /* Vertically centred so a short beat list doesn't leave the frame bottom-heavy. */
+  .stage { box-sizing:border-box; width:${STAGE_W}px; height:${STAGE_H}px;
+    padding:${PAD_Y}px ${PAD_X}px; position:relative;
+    display:flex; flex-direction:column; justify-content:center; }
+  .orb { position:absolute; top:84px; right:${PAD_X}px; width:96px; height:96px; border-radius:50%;
     background: radial-gradient(circle at 35% 35%, #ffffff -40%, ${accent} 60%);
     box-shadow: 0 0 60px ${accent}; animation: float 4s ease-in-out infinite; }
   @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-14px) } }
-  h1 { font-size:64px; margin:0 0 24px; letter-spacing:-0.02em; white-space:nowrap;
-    animation: enter 0.7s ease-out both; }
-  .rule { width:160px; height:6px; background:${accent}; border-radius:3px; margin-bottom:56px;
-    animation: enter 0.7s ease-out both; animation-delay:0.2s; }
-  ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:42px; }
-  .beat { display:flex; align-items:center; gap:28px; font-size:44px; line-height:1.3;
+  /* Sized to fit and capped clear of the orb; wraps rather than clipping if it still overflows. */
+  h1 { font-size:${titleSize}px; line-height:1.2; margin:0 0 24px; letter-spacing:-0.02em;
+    max-width:${TITLE_W}px; text-wrap:balance; animation: enter 0.7s ease-out both; }
+  .rule { flex:none; width:160px; height:6px; background:${accent}; border-radius:3px;
+    margin-bottom:44px; animation: enter 0.7s ease-out both; animation-delay:0.2s; }
+  ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:${gap}px; }
+  .beat { display:flex; align-items:flex-start; gap:28px; font-size:${beatSize}px; line-height:1.35;
     opacity:0; animation: enter 0.6s ease-out both; }
-  .dot { flex:none; width:22px; height:22px; border-radius:50%; background:${accent};
-    box-shadow: 0 0 18px ${accent}; }
+  .dot { flex:none; width:${dot}px; height:${dot}px; border-radius:50%; background:${accent};
+    box-shadow: 0 0 18px ${accent}; margin-top:${Math.round(beatSize * 0.42)}px; }
+  .beat-text { max-width:${STAGE_W - PAD_X * 2 - 60}px; }
   @keyframes enter { from { opacity:0; transform: translateY(24px) } to { opacity:1; transform: translateY(0) } }
 </style>
 </head>

@@ -36,10 +36,21 @@ like a chore.
 | `sort_order` | Processes, step sequences | Tap items into the correct order; verified as a whole |
 | `find_mistakes` | Critical review, error hunting | Per-statement correct/mistake judgement |
 | `slider` | Self-assessment, prior knowledge | No right answer; always awards its XP |
+| `match_pairs` | Matching, drag & drop into categories | Tap an item, tap its category; evaluated as a whole, wrong pairings marked individually |
 | `final_check` | Consolidation at the end | 8–10 mixed questions, shuffled |
 
-The curriculum may describe richer forms (branching stories, timelines, rapid-fire with timers);
-plan extraction maps those onto the closest supported type. Adding a type means extending the
+The curriculum may describe richer forms (branching stories, rapid-fire with timers); plan
+extraction maps those onto the closest supported type — but note that **flattening degrades an
+exercise**, and it is worth building a renderer rather than mapping away. A matching exercise
+flattened into independent multiple-choice questions became solvable by elimination and repeated
+one feedback sentence five times; that is why `match_pairs` exists.
+
+Three rules the extraction prompt enforces, each learned from a training that shipped without
+them: an item must never name its own answer ("the sales folders in Google Drive" → "Google Drive
+Sync" teaches nothing), an ordering task must not carry its order in the labels ("Day 1", "Step
+2"), and the final check must ask applied questions rather than re-testing the levels' ground in
+easier recall form. The ordinal stripping is additionally enforced in code, because prompts alone
+are not reliable enough. Adding a type means extending the
 `InteractionKind` union, the plan schema's enum, the extraction prompt's mapping instructions,
 and a renderer in the template.
 

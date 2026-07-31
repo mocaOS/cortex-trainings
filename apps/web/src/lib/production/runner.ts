@@ -17,6 +17,7 @@ import { stepFilms, quoteFilms } from './steps/films';
 import { stepAnimations } from './steps/animations';
 import { stepImages } from './steps/images';
 import { stepAssemble } from './steps/assemble';
+import { stepQa } from './steps/qa';
 
 export type ProductionEvent =
   | { type: 'state'; state: ProductionState }
@@ -156,7 +157,16 @@ class ProductionRun {
       voiceovers: () => stepVoiceovers(ctx),
       films: async () => {
         const quote = await quoteFilms(ctx);
-        if (quote.totalUsd > 0) {
+        // Don't re-ask when the same total was already approved — a resume would otherwise
+        // park at a gate the user has already cleared, and the quote is free to recompute.
+        const alreadyApproved =
+          this.state.videoConfirmed === true &&
+          typeof this.state.videoQuoteUsd === 'number' &&
+          Math.abs(this.state.videoQuoteUsd - quote.totalUsd) < 0.01;
+        if (alreadyApproved) {
+          this.log('films', `quote unchanged at $${quote.totalUsd.toFixed(2)} — already approved`);
+        }
+        if (quote.totalUsd > 0 && !alreadyApproved) {
           await this.patchState({ videoQuoteUsd: quote.totalUsd, status: 'waiting_input' });
           await this.patchStep('films', {
             status: 'waiting_input',
@@ -174,10 +184,21 @@ class ProductionRun {
         const file = await stepAssemble(ctx);
         await this.patchState({ outputFile: file });
       },
+      qa: async () => {
+        const result = await stepQa(ctx);
+        await this.patchState({ qa: result });
+      },
     };
 
     for (const id of STEP_ORDER) {
-      const step = this.state.steps.find((s) => s.id === id)!;
+      // State persisted before a step existed won't contain it — adopt it as pending
+      // rather than crashing on an older project.
+      let step = this.state.steps.find((s) => s.id === id);
+      if (!step) {
+        step = { id, status: 'pending' };
+        this.state.steps.splice(STEP_ORDER.indexOf(id), 0, step);
+        await this.persist();
+      }
       if (step.status === 'completed') {
         // Resume support: reload plan for downstream steps.
         if (id === 'plan' && !this.plan) {
@@ -223,7 +244,12 @@ function projectDir(projectId: string): string {
 
 export async function getProductionState(projectId: string): Promise<ProductionState | null> {
   const live = registry.get(projectId);
-  if (live) return live.state;
+  // An in-flight run is the authority; a finished or failed one is not — its state may have
+  // been edited on disk since (resetting steps to re-run them), and stale memory would
+  // silently discard that, restarting the whole pipeline from scratch.
+  if (live && (live.state.status === 'running' || live.state.status === 'waiting_input')) {
+    return live.state;
+  }
   try {
     return JSON.parse(
       await fs.readFile(path.join(projectDir(projectId), 'production.json'), 'utf8'),

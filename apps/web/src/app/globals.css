@@ -559,6 +559,26 @@ select:focus {
   font-size: 0.85rem;
 }
 
+/* Automated click-through result — including what it did NOT cover. */
+.qa-result {
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+}
+
+.qa-result .ok {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.qa-result .bad {
+  color: var(--destructive);
+  font-weight: 600;
+}
+
 .prod-log {
   margin-top: 1rem;
   max-height: 200px;

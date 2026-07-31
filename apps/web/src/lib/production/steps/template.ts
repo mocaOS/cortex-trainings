@@ -43,6 +43,11 @@ const STRINGS: Record<string, Record<string, string>> = {
     sortHint: 'Tippe die Punkte in der richtigen Reihenfolge an.',
     sliderHint: 'Schätze dich selbst ein — es gibt kein richtig oder falsch.',
     done: 'Training abgeschlossen!',
+    matchHint: 'Tippe einen Eintrag an, dann die passende Kategorie.',
+    backToStart: 'Zum Start',
+    matchCheck: 'Auswertung',
+    matchRemaining: 'noch offen',
+    matchYourAnswer: 'deine Zuordnung',
   },
   en: {
     start: 'Start training',
@@ -67,6 +72,11 @@ const STRINGS: Record<string, Record<string, string>> = {
     sortHint: 'Tap the items in the correct order.',
     sliderHint: 'Rate yourself — there is no right or wrong.',
     done: 'Training complete!',
+    matchHint: 'Tap an item, then the category it belongs to.',
+    backToStart: 'Back to start',
+    matchCheck: 'Results',
+    matchRemaining: 'still open',
+    matchYourAnswer: 'your answer',
   },
 };
 
@@ -90,6 +100,11 @@ export function trainingHtml(data: TrainingData): string {
     font-family:system-ui,-apple-system,'Segoe UI',sans-serif; line-height:1.5; }
   header { display:flex; justify-content:space-between; align-items:center; padding:14px 22px;
     border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:5; }
+  header .hdr-left { display:flex; align-items:center; gap:14px; min-width:0; }
+  #btn-home { padding:5px 11px; border-radius:8px; border:1px solid var(--border);
+    background:var(--card); color:var(--dim); font:inherit; font-size:13px; cursor:pointer;
+    white-space:nowrap; }
+  #btn-home:hover { color:var(--text); border-color:var(--accent); }
   header .badges { display:flex; gap:6px; }
   header .badge { width:26px; height:26px; border-radius:50%; border:2px solid var(--border);
     display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--dim); }
@@ -125,6 +140,20 @@ export function trainingHtml(data: TrainingData): string {
   .feedback.poor { border-color:var(--bad); }
   .keytake { border-left:3px solid var(--accent); padding:10px 16px; margin-top:20px; color:var(--dim); }
   .qcount { color:var(--dim); font-size:14px; }
+  .match { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:16px; }
+  @media (max-width:720px) { .match { grid-template-columns:1fr; } }
+  .match-items { display:flex; flex-direction:column; gap:10px; align-content:start; }
+  .match-cats { display:flex; flex-direction:column; gap:10px; }
+  .chip-item { text-align:left; padding:11px 14px; border-radius:10px; border:1px solid var(--border);
+    background:var(--bg); color:var(--text); font:inherit; font-size:15px; cursor:pointer; }
+  .chip-item.sel { border-color:var(--accent); box-shadow:0 0 0 2px rgba(128,128,128,.15); }
+  .chip-item.placed { font-size:14px; padding:8px 12px; }
+  .chip-item.ok { border-color:var(--ok); background:rgba(74,222,128,.08); }
+  .chip-item.bad { border-color:var(--bad); background:rgba(248,113,113,.08); }
+  .cat { border:1px dashed var(--border); border-radius:10px; padding:12px;
+    display:flex; flex-direction:column; gap:8px; min-height:64px; }
+  .cat.active { border-color:var(--accent); cursor:pointer; }
+  .cat-title { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
   img.ctx { width:100%; border-radius:14px; border:1px solid var(--border); margin-bottom:14px; }
   input[type=range] { width:100%; accent-color:var(--accent); }
   ol.summary { padding-left:22px; } ol.summary li { margin-bottom:10px; }
@@ -139,7 +168,10 @@ export function trainingHtml(data: TrainingData): string {
 </head>
 <body>
 <header>
-  <strong id="hdr-title"></strong>
+  <div class="hdr-left">
+    <strong id="hdr-title"></strong>
+    <button id="btn-home" type="button" hidden></button>
+  </div>
   <div class="badges" id="badges"></div>
   <span class="xp"><span id="xp">0</span></span>
 </header>
@@ -150,6 +182,10 @@ const DATA = ${payload};
 const T = ${t};
 document.getElementById('hdr-title').textContent = DATA.title;
 document.title = DATA.title;
+const homeBtn = document.getElementById('btn-home');
+homeBtn.textContent = '← ' + T.backToStart;
+/* Navigates only — progress stays saved, and the start screen offers Resume / Start over. */
+homeBtn.onclick = () => go(0);
 document.querySelector('.xp').innerHTML = '<span id="xp">0</span> ' + T.xp;
 
 const KEY = 'cortex-training-' + DATA.title.slice(0,40);
@@ -177,6 +213,7 @@ function renderBadges(){
 
 function go(n){
   state.screen = n; save();
+  homeBtn.hidden = n === 0;
   document.getElementById('bar').style.width = (n/(screens.length-1)*100)+'%';
   render();
   window.scrollTo({top:0});
@@ -262,6 +299,7 @@ function renderInteraction(el, inter, li){
 
   if (inter.kind==='slider') return renderSlider(el, inter, li);
   if (inter.kind==='sort_order') return renderSort(el, inter, li);
+  if (inter.kind==='match_pairs') return renderMatch(el, inter, li);
   return renderQuestions(el, inter, li);
 }
 
@@ -315,6 +353,90 @@ function renderSort(el, inter, li){
       }
     }
   }
+}
+
+/* Matching: assign every item to a category, then evaluate as a whole.
+   Kept as tap-to-assign rather than HTML5 drag so it works on touch. */
+function renderMatch(el, inter, li){
+  const items = inter.questions.map((q,i)=>({ i, text:q.text, correct:q.correctIndex }));
+  const cats = (inter.questions[0] && inter.questions[0].options) || [];
+  const assigned = new Map();       // item index -> category index
+  let selected = null, attempt = 0;
+
+  const card=document.createElement('div'); card.className='card';
+  card.innerHTML='<p class="hint">'+T.matchHint+'</p>';
+  const wrap=document.createElement('div'); wrap.className='match';
+  const itemCol=document.createElement('div'); itemCol.className='match-items';
+  const catCol=document.createElement('div'); catCol.className='match-cats';
+  wrap.appendChild(itemCol); wrap.appendChild(catCol);
+  const fb=document.createElement('div'); fb.className='feedback';
+  card.appendChild(wrap); card.appendChild(fb); el.appendChild(card);
+
+  function draw(){
+    itemCol.innerHTML=''; catCol.innerHTML='';
+    const open = items.filter(it=>!assigned.has(it.i));
+    const counter=document.createElement('p'); counter.className='qcount';
+    counter.textContent=open.length+' '+T.matchRemaining;
+    itemCol.appendChild(counter);
+    open.forEach(it=>{
+      const b=document.createElement('button'); b.className='chip-item'+(selected===it.i?' sel':'');
+      b.textContent=it.text;
+      b.onclick=()=>{ selected = selected===it.i ? null : it.i; draw(); };
+      itemCol.appendChild(b);
+    });
+    cats.forEach((cat,ci)=>{
+      const box=document.createElement('div'); box.className='cat'+(selected!==null?' active':'');
+      const h=document.createElement('div'); h.className='cat-title'; h.textContent=cat;
+      box.appendChild(h);
+      items.filter(it=>assigned.get(it.i)===ci).forEach(it=>{
+        const chip=document.createElement('button'); chip.className='chip-item placed';
+        chip.textContent=it.text;
+        chip.onclick=()=>{ assigned.delete(it.i); selected=null; draw(); };
+        box.appendChild(chip);
+      });
+      box.onclick=(e)=>{
+        if (e.target.classList.contains('chip-item')) return;
+        if (selected===null) return;
+        assigned.set(selected, ci); selected=null; draw();
+        if (assigned.size===items.length) evaluate();
+      };
+      catCol.appendChild(box);
+    });
+  }
+
+  function evaluate(){
+    const right = items.filter(it=>assigned.get(it.i)===it.correct);
+    const ok = right.length===items.length;
+    // Mark each placed chip, so a learner sees WHICH pairing was wrong.
+    catCol.querySelectorAll('.cat').forEach((box,ci)=>{
+      box.querySelectorAll('.chip-item.placed').forEach(chip=>{
+        const it = items.find(x=>x.text===chip.textContent);
+        if (it) chip.classList.add(it.correct===ci ? 'ok' : 'bad');
+      });
+    });
+    fb.className='feedback show '+(ok?'good':'poor');
+    // One resolution for the whole exercise — per-item copies are duplicates.
+    const resolution = (inter.questions.find(q=>q.explanation && q.explanation.trim())||{}).explanation || '';
+    fb.innerHTML='<strong>'+(ok?T.correct:T.wrong)+'</strong> '+right.length+'/'+items.length+'. '+esc(resolution);
+    if (ok){
+      addXp(attempt===0?(inter.xp||20):Math.ceil((inter.xp||20)/2));
+      addContinue(fb, li);
+    } else if (attempt>=1){
+      addContinue(fb, li);
+    } else {
+      attempt++;
+      const r=document.createElement('button'); r.className='btn'; r.style.marginTop='12px';
+      r.textContent=T.retry;
+      r.onclick=()=>{
+        // Keep the pairings that were right; the learner only redoes the rest.
+        items.forEach(it=>{ if (assigned.get(it.i)!==it.correct) assigned.delete(it.i); });
+        fb.className='feedback'; fb.innerHTML=''; draw();
+      };
+      fb.appendChild(r);
+    }
+  }
+
+  draw();
 }
 
 function renderQuestions(el, inter, li){

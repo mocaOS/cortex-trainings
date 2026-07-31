@@ -44,19 +44,51 @@ export class VeniceClient {
     this.model = opts.model;
   }
 
+
+  /**
+   * Retries transient failures. A single `fetch failed` (a network blip, a reset connection)
+   * once threw away a multi-minute research run, and 429/5xx are worth waiting out rather
+   * than losing the conversation.
+   */
+  private async post(path: string, body: string, what: string, tries = 4): Promise<Response> {
+    let lastError = '';
+    for (let n = 0; n < tries; n++) {
+      try {
+        const res = await fetch(`${this.baseUrl}${path}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body,
+        });
+        if (res.ok || !(res.status === 429 || res.status >= 500)) return res;
+        lastError = `status ${res.status}`;
+        const retryAfter = Number(res.headers.get('Retry-After') ?? '0');
+        await this.wait(retryAfter > 0 ? retryAfter * 1000 : Math.min(2000 * 2 ** n, 20000));
+      } catch (err) {
+        // Network-level failure: no response at all.
+        lastError = err instanceof Error ? err.message : String(err);
+        if (n === tries - 1) break;
+        await this.wait(Math.min(2000 * 2 ** n, 20000));
+      }
+    }
+    throw new Error(`Venice ${what}: ${lastError} (after ${tries} attempts)`);
+  }
+
+  private wait(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
   /** Chat completion forced into a JSON schema; returns the parsed object. */
   async chatJson<T>(
     messages: AgentMessage[],
     schema: { name: string; schema: Record<string, unknown> },
     opts?: { maxTokens?: number },
   ): Promise<T> {
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const res = await this.post(
+      '/chat/completions',
+      JSON.stringify({
         model: this.model,
         messages,
         response_format: {
@@ -66,7 +98,8 @@ export class VeniceClient {
         max_tokens: opts?.maxTokens ?? 32768,
         stream: false,
       }),
-    });
+      'chatJson',
+    );
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error(`Venice chatJson → ${res.status}: ${body.slice(0, 500)}`);
@@ -85,13 +118,9 @@ export class VeniceClient {
     messages: AgentMessage[],
     opts?: { tools?: ToolDefinition[]; maxTokens?: number; temperature?: number },
   ): Promise<ChatCompletionResult> {
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const res = await this.post(
+      '/chat/completions',
+      JSON.stringify({
         model: this.model,
         messages,
         ...(opts?.tools?.length ? { tools: opts.tools, tool_choice: 'auto' } : {}),
@@ -99,7 +128,8 @@ export class VeniceClient {
         ...(opts?.temperature != null ? { temperature: opts.temperature } : {}),
         stream: false,
       }),
-    });
+      'chat/completions',
+    );
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       if (res.status === 402) {

@@ -38,6 +38,13 @@ for (const level of plan.levels) {
   for (const q of level.interaction.questions) correct.set(q.text.trim(), q.options[q.correctIndex]);
 }
 for (const q of plan.finalCheck.questions) correct.set(q.text.trim(), q.options[q.correctIndex]);
+// Matching tasks: item text -> its correct category, so the walk can assign correctly.
+const matchAnswers = new Map();
+for (const l of plan.levels) {
+  if (l.interaction.kind !== 'match_pairs') continue;
+  for (const q of l.interaction.questions) matchAnswers.set(q.text.trim(), q.options[q.correctIndex]);
+}
+
 // A training can contain several sorting tasks, each with its own items.
 const sortOrders = plan.levels
   .filter((l) => l.interaction.kind === 'sort_order' && l.interaction.questions[0]?.options?.length)
@@ -98,6 +105,35 @@ for (let step = 0; step < 80; step++) {
       await page.waitForTimeout(450);
       continue;
     }
+  }
+
+  // Matching task: tap each item, then tap its correct category.
+  if (matchAnswers.size && (await page.locator('.chip-item').count())) {
+    for (let guard = 0; guard < 20; guard++) {
+      const chips = page.locator('.match-items .chip-item');
+      const n = await chips.count();
+      if (!n) break;
+      const itemText = (await chips.first().textContent()).trim();
+      const wantCat = matchAnswers.get(itemText);
+      await chips.first().click();
+      await page.waitForTimeout(120);
+      if (wantCat) {
+        const box = page.locator('.cat', { hasText: wantCat.slice(0, 30) }).first();
+        if (await box.count()) await box.click({ position: { x: 5, y: 5 } });
+      } else {
+        await page.locator('.cat').first().click({ position: { x: 5, y: 5 } });
+      }
+      await page.waitForTimeout(160);
+    }
+    await page.waitForTimeout(400);
+    const cont = page.locator('.continue-btn').first();
+    if (!(await cont.count())) {
+      errors.push('match_pairs resolved but no continue button appeared');
+      break;
+    }
+    await cont.click();
+    await page.waitForTimeout(400);
+    continue;
   }
 
   // Sorting task: identify which one is on screen, then click its items in order.

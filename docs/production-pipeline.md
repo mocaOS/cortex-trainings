@@ -1,7 +1,7 @@
 # Production pipeline
 
-Seven steps, run in order, each persisted so a failure resumes rather than restarts. Two steps
-park for human judgement.
+Eight steps, run in order, each persisted so a failure resumes rather than restarts. Two steps
+park for human judgement, and the last one refuses to let a broken training reach anyone.
 
 ## 1. Plan
 
@@ -56,11 +56,17 @@ Cost: cents for a whole training.
 
 Only for levels the curriculum marks as FILM. This is where essentially all the money goes.
 
-**Shot 1** uses reference-to-video with the chosen guide-character image, for consistency.
-**Follow-up shots** chain: the previous shot's last frame is extracted with ffmpeg and passed as
-the next shot's start frame, with the prompt prefixed to continue the camera and action. The
-result is a seamless sequence — never a boomerang loop, which looks broken because the subject
-disappears and reappears.
+Chaining is **scene-aware**, because the two cases need opposite handling:
+
+- A shot that **continues the previous scene** is generated from its last frame (extracted with
+  ffmpeg), prompt prefixed to continue the camera and action. The cut becomes invisible.
+- A shot that **opens a new scene** is generated from the guide-character reference instead, so
+  it cuts cleanly. Chaining across a location change forces the model to morph one setting into
+  another inside a single clip — an early run turned a forest into a furniture showroom mid-shot,
+  which looks like a glitch rather than an edit.
+
+The plan declares this per shot (`continuesPreviousScene`). Either way it is a chain, never a
+boomerang loop — those look broken because the subject disappears and reappears.
 
 Shot durations are clamped to what each model supports (reference-to-video: 5s or 10s; chaining:
 5s, 10s, 15s) and then **grown until the chain covers the voiceover**, because every uncovered
@@ -105,6 +111,38 @@ downscaled embed copy (1280 wide) while the 1080p masters stay on disk for socia
 presentation reuse. The step warns if the result exceeds 50 MB.
 
 Cost: zero, seconds to run.
+
+## 8. Browser QA
+
+The produced file is opened in a headless browser and clicked through: every interaction is
+solved using the correct answers from the plan, every embedded video is probed for decode, the
+walk must reach the summary screen, and the console must be clean. **A failure fails the run**,
+with the offending screen named in the log.
+
+This exists because two broken trainings reached a finished file when this was a step a human
+remembered to do — one had an interaction with no way to continue, the other a sorting task that
+could not be completed. Both were invisible until someone clicked.
+
+The step reports what it did **not** cover (failure paths, audio playback, print styling, mobile
+layout) rather than implying total coverage. `scripts/qa-training.mjs` is the single
+implementation; the pipeline spawns it, so the CLI and the pipeline can never disagree.
+
+Cost: zero.
+
+## Revisions after production
+
+Changing a curriculum after media exists is allowed, but not on the author's word. On save, the
+new curriculum is compared against the plan the media was built from, per level:
+
+- **narration changed** → that level's audio, film and animation are discarded
+- **title changed** → that level's animation is discarded
+- **film prompts changed** → that level's footage is discarded
+
+Whatever is stale is deleted so the next run regenerates it, and the agent is told which levels
+were affected and that video regeneration costs money. This exists because a revision asked to
+touch "only the interactions" rewrote every voiceover script and renamed every level while
+reporting that nothing had changed — which would have shipped a training whose voice track
+contradicted its own document.
 
 ## Cost shape
 

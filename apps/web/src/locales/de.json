@@ -1,7 +1,6 @@
 {
   "app.title": "Cortex Trainings",
   "app.tagline": "Interaktive Lerneinheiten aus deiner Cortex-Wissensbasis",
-  "nav.projects": "Projekte",
   "nav.newProject": "Neue Schulung",
   "dashboard.empty": "Noch keine Schulungen. Erstelle deine erste.",
   "dashboard.status.briefing": "Briefing",
@@ -61,5 +60,9 @@
   "briefing.visualStyle.3d": "3D-Render",
   "briefing.visualStyle.realistic": "Realistisch",
   "briefing.visualStyle.anime": "Anime",
-  "briefing.visualStyle.comic": "Comic"
+  "briefing.visualStyle.comic": "Comic",
+  "production.step.qa": "Browser-Test der Lerneinheit",
+  "production.qaPassed": "Klick-Test bestanden",
+  "production.qaNotCovered": "Nicht geprüft",
+  "nav.backToStart": "Zur Übersicht"
 }

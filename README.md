@@ -4,6 +4,9 @@ Standalone web application that turns domain knowledge from a [Cortex](https://d
 instance into interactive, offline-capable HTML training units, with
 [Venice.ai](https://docs.venice.ai) as the AI provider.
 
+**▶ [Try a training it produced](https://cortex.eco/demo/cortex-trainings.html)** — a real
+7-level course about Cortex itself, generated from a Cortex instance. One HTML file, runs offline.
+
 - **Documentation:** [`docs/`](docs/) — start with [docs/README.md](docs/README.md)
 - **Original service analysis:** `OVERVIEW.md`
 - **Repo guide for Claude Code:** `CLAUDE.md`
@@ -20,6 +23,41 @@ Briefing ─▶ fable agent ──▶ curriculum.md ──▶ ⛔ approval ─�
 Part 1 is free, so content gets finished and signed off as a document before any media is
 generated. Part 2 pauses twice for human judgement: picking the guide-character reference
 image, and confirming the live video cost quote. See [docs/workflow.md](docs/workflow.md).
+
+## The flow, screen by screen
+
+**1. Briefing** — four inputs the app refuses to guess (topic, audience, language, duration),
+plus the visual style for all generated media and an optional collection to scope research to.
+
+![Briefing form](public/1.jpeg)
+
+**2. Research** — the agent fans out deep-research and search calls across the knowledge base
+before it writes a word. Every tool call and result is visible as it happens.
+
+![Research running](public/2.jpeg)
+
+**3. Curriculum** — a complete document you can actually review: fact sheet, levels, scripts,
+interactions, cited sources. Revisions are free and versioned; the agent explains what changed.
+
+![Curriculum draft with revision summary](public/3.jpeg)
+
+**4. Guide character** — production's first pause. Two candidates; you pick the one without
+baked-in text, because this image anchors the look of every video.
+
+![Reference image pick](public/4.jpeg)
+
+**5. Cost gate** — every shot is quoted before a cent is spent, and nothing generates until you
+confirm. Voiceovers are already done by this point (cents); video is the real expense.
+
+![Video cost confirmation](public/5.jpeg)
+
+**6. Done** — a single offline HTML file. The step list doubles as the audit trail, and the log
+shows exactly what was produced and downscaled.
+
+![Finished training ready to download](public/6.jpeg)
+
+The result of this exact run is live:
+**[cortex.eco/demo/cortex-trainings.html](https://cortex.eco/demo/cortex-trainings.html)**.
 
 ## Setup
 
