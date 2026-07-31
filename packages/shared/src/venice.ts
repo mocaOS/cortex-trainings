@@ -1,0 +1,120 @@
+export interface VeniceClientOptions {
+  apiKey: string;
+  baseUrl?: string;
+  model: string;
+}
+
+export interface ToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+export type AgentMessage =
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+export interface ChatCompletionResult {
+  content: string | null;
+  toolCalls: ToolCall[];
+  finishReason: string;
+  usage?: { prompt_tokens: number; completion_tokens: number };
+}
+
+/** OpenAI-compatible Venice chat client (server-side only). */
+export class VeniceClient {
+  private apiKey: string;
+  private baseUrl: string;
+  readonly model: string;
+
+  constructor(opts: VeniceClientOptions) {
+    this.apiKey = opts.apiKey;
+    this.baseUrl = (opts.baseUrl ?? 'https://api.venice.ai/api/v1').replace(/\/$/, '');
+    this.model = opts.model;
+  }
+
+  /** Chat completion forced into a JSON schema; returns the parsed object. */
+  async chatJson<T>(
+    messages: AgentMessage[],
+    schema: { name: string; schema: Record<string, unknown> },
+    opts?: { maxTokens?: number },
+  ): Promise<T> {
+    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: schema.name, strict: true, schema: schema.schema },
+        },
+        max_tokens: opts?.maxTokens ?? 32768,
+        stream: false,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Venice chatJson → ${res.status}: ${body.slice(0, 500)}`);
+    }
+    const json = (await res.json()) as any;
+    const content = json.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Venice chatJson returned no content');
+    try {
+      return JSON.parse(content) as T;
+    } catch {
+      throw new Error(`Venice chatJson returned non-JSON content: ${String(content).slice(0, 300)}`);
+    }
+  }
+
+  async chat(
+    messages: AgentMessage[],
+    opts?: { tools?: ToolDefinition[]; maxTokens?: number; temperature?: number },
+  ): Promise<ChatCompletionResult> {
+    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages,
+        ...(opts?.tools?.length ? { tools: opts.tools, tool_choice: 'auto' } : {}),
+        max_tokens: opts?.maxTokens ?? 16384,
+        ...(opts?.temperature != null ? { temperature: opts.temperature } : {}),
+        stream: false,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      if (res.status === 402) {
+        throw new Error('Venice: insufficient balance (HTTP 402). Top up USD credits or DIEM.');
+      }
+      throw new Error(`Venice chat/completions → ${res.status}: ${body.slice(0, 500)}`);
+    }
+    const json = (await res.json()) as any;
+    const choice = json.choices?.[0];
+    if (!choice) throw new Error('Venice returned no choices');
+    return {
+      content: choice.message?.content ?? null,
+      toolCalls: choice.message?.tool_calls ?? [],
+      finishReason: choice.finish_reason ?? 'stop',
+      usage: json.usage,
+    };
+  }
+}

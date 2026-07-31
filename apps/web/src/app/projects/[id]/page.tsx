@@ -1,0 +1,7 @@
+import { getDict } from '@/lib/i18n';
+import { Workspace } from '@/components/Workspace';
+
+export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <Workspace dict={getDict()} projectId={id} />;
+}

@@ -1,0 +1,613 @@
+/* Cortex design system — monochrome + single chromatic accent (OKLCh).
+   Source of truth: cortex-app/design-system/tokens.css. Dark mode is primary.
+   --accent is overridable via the ACCENT_COLOR env variable (injected in layout.tsx). */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono.ttf') format('truetype-variations');
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+:root,
+.dark {
+  /* Surfaces */
+  --background: oklch(0.1448 0 0);
+  --foreground: oklch(0.9851 0 0);
+  --card: oklch(0.2134 0 0);
+  --card-foreground: oklch(0.9851 0 0);
+
+  /* Interactive */
+  --primary: oklch(0.9851 0 0);
+  --primary-foreground: oklch(0.1448 0 0);
+  --secondary: oklch(0.2686 0 0);
+  --secondary-foreground: oklch(0.9851 0 0);
+  --muted: oklch(0.2686 0 0);
+  --muted-foreground: oklch(0.7090 0 0);
+
+  /* Accent — the ONLY chromatic color. Use sparingly. */
+  --accent: oklch(0.79 0.18 70.67);
+  --accent-foreground: oklch(0.1448 0 0);
+
+  /* Semantic */
+  --destructive: oklch(0.7022 0.1892 22.2279);
+  --destructive-foreground: oklch(0.2686 0 0);
+
+  /* Borders & inputs */
+  --border: oklch(0.3407 0 0);
+  --input: oklch(0.4386 0 0);
+  --ring: oklch(0.5555 0 0);
+
+  /* Layout */
+  --radius: 0.5rem;
+  /* Shared height of the activity and curriculum panels — they scroll internally. */
+  --panel-h: 68vh;
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+body {
+  margin: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.55;
+  font-feature-settings: 'cv11';
+}
+
+a {
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.9rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--card);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.topbar nav {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.topbar nav a:not(.btn) {
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+}
+
+.topbar nav a:not(.btn):hover {
+  color: var(--foreground);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 650;
+  color: var(--foreground);
+  font-size: 1.02rem;
+}
+
+.brand-orb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--foreground) -60%, var(--accent) 60%);
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  transition: background-color 300ms, border-color 300ms;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--ring);
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-foreground);
+  font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  border-color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.project-list {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.project-card {
+  transition: background-color 300ms, border-color 300ms;
+}
+
+.project-card:hover {
+  background-color: var(--muted);
+  border-color: var(--ring);
+}
+
+.project-card h3 {
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.badge.draft {
+  border-color: var(--ring);
+  color: var(--foreground);
+}
+
+.badge.approved {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-foreground);
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--muted-foreground);
+}
+
+/* Full briefing topic shown as description under the shortened headline. */
+.topic-full {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+  max-width: 80ch;
+}
+
+.topic-clamp {
+  margin: 0 0 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+form.stack,
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 720px;
+}
+
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 550;
+  font-size: 0.95rem;
+}
+
+label.field .hint {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--muted-foreground);
+}
+
+input,
+textarea,
+select {
+  background-color: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  color: var(--foreground);
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.topic-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  font-size: 0.82rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  cursor: pointer;
+  transition: border-color 300ms;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  :root,
+  .dark {
+    --panel-h: 60vh;
+  }
+}
+
+/* A panel is a fixed-height card whose body scrolls; header and footer stay put. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: var(--panel-h);
+}
+
+/* A column caps its whole stack (panel + approval bar) at the panel height, so
+   both workspace columns end on the same line. */
+.workspace .column {
+  display: flex;
+  flex-direction: column;
+  height: var(--panel-h);
+}
+
+.workspace .column > .panel {
+  height: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.workspace .column > .approve-bar {
+  flex: none;
+}
+
+.panel > h3 {
+  flex: none;
+}
+
+.panel > .btn,
+.panel > .chatbox {
+  flex: none;
+}
+
+.activity {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.87rem;
+}
+
+.activity .evt {
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius);
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  animation: enter 350ms ease-out;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.activity .evt.tool {
+  color: var(--muted-foreground);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.76rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.activity .evt.assistant {
+  border-left: 2px solid var(--accent);
+  white-space: pre-wrap;
+}
+
+.activity .evt.user {
+  background-color: var(--secondary);
+  white-space: pre-wrap;
+}
+
+.activity .evt.error {
+  border-color: var(--destructive);
+  color: var(--destructive);
+}
+
+.curriculum {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 2rem;
+}
+
+.curriculum pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.84rem;
+  margin: 0;
+}
+
+.chatbox {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.chatbox input {
+  flex: 1;
+}
+
+.approve-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius);
+  background-color: var(--card);
+}
+
+/* Keep the label on one line — the hint beside it wraps instead. */
+.approve-bar .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Production panel */
+.prod-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.prod-step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+}
+
+.prod-step .icon {
+  width: 1.2rem;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+.prod-step.running .icon {
+  color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.prod-step.completed .icon {
+  color: var(--accent);
+}
+
+.prod-step.failed .icon,
+.prod-step .detail.error {
+  color: var(--destructive);
+}
+
+.prod-step.waiting_input .icon {
+  color: var(--accent);
+}
+
+.prod-step.pending {
+  color: var(--muted-foreground);
+}
+
+.prod-step .detail {
+  font-size: 0.8rem;
+}
+
+.ref-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.ref-candidate {
+  position: relative;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  background: none;
+}
+
+.ref-candidate:hover {
+  border-color: var(--accent);
+}
+
+.ref-candidate img {
+  display: block;
+  width: 100%;
+}
+
+/* Post-pick review: not clickable, chosen one highlighted. */
+.ref-candidate.static {
+  margin: 0;
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ref-candidate.static.chosen {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+.ref-chosen {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.ref-chosen summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+
+.ref-chosen summary:hover {
+  color: var(--foreground);
+}
+
+.ref-candidate span {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  border-radius: 999px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+
+.prod-log {
+  margin-top: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.74rem;
+  color: var(--muted-foreground);
+}
+
+.pulse {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ring);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
