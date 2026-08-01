@@ -138,31 +138,43 @@ export class CortexClient {
     const decoder = new TextDecoder();
     let buffer = '';
 
+    let frames = 0;
+
     const handleData = (data: string) => {
       if (!data) return;
+      frames++;
       let payload: unknown;
       try {
         payload = JSON.parse(data);
       } catch {
         payload = data;
       }
-      const ev = eventName || 'message';
+      const obj =
+        payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
+      /**
+       * Cortex /api/ask/stream sends NO `event:` lines — every frame is a bare
+       * `data: {"<kind>": …}` object (content / thinking / status / retrieval /
+       * sources / done). Dispatching on the SSE event name therefore matched
+       * nothing: all 388 content frames of a real answer fell through and
+       * deepResearch returned "", which the agent read as "the knowledge base has
+       * nothing on this" and kept re-researching until it burned MAX_ITERATIONS.
+       * Dispatch on the payload's own key; keep the event name as a fallback for a
+       * server that does send one.
+       */
+      const ev =
+        eventName ||
+        (obj ? (['content', 'sources', 'error'].find((k) => k in obj) ?? 'ignore') : 'ignore');
       if (ev === 'content') {
-        const token =
-          typeof payload === 'string'
-            ? payload
-            : ((payload as Record<string, unknown>)?.content as string) ?? '';
+        const token = typeof payload === 'string' ? payload : ((obj?.content as string) ?? '');
         answer += token;
         opts?.onToken?.(token);
       } else if (ev === 'sources') {
-        const arr = Array.isArray(payload)
-          ? payload
-          : ((payload as Record<string, unknown>)?.sources as unknown[]) ?? [];
+        const arr = Array.isArray(payload) ? payload : ((obj?.sources as unknown[]) ?? []);
         for (const s of arr) sources.push(s as CortexAskResult['sources'][number]);
       } else if (ev === 'error') {
         throw new Error(`Cortex ask stream error: ${data.slice(0, 500)}`);
       }
-      // status / thinking / retrieval / graph_context / memory_update are ignored here.
+      // status / thinking / retrieval / retrieval_stats / graph_context / done are ignored here.
     };
 
     for (;;) {
@@ -182,6 +194,15 @@ export class CortexClient {
           eventName = '';
         }
       }
+    }
+
+    // An empty answer used to be returned as-is, so a parser/format mismatch looked
+    // exactly like an empty knowledge base. Fail loudly instead.
+    if (!answer.trim()) {
+      throw new Error(
+        `Cortex /api/ask/stream produced no answer text (${frames} frames consumed) — ` +
+          'the stream format may have changed.',
+      );
     }
 
     return { answer, sources };
