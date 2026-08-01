@@ -51,6 +51,10 @@ export async function POST(req: NextRequest, { params }: Params) {
           }
         }
       } catch (err) {
+        // Also log server-side: an error that only goes into the SSE stream is
+        // invisible the moment the client disconnects, which is exactly when it
+        // matters most. A 23-minute failed run left no trace in the terminal.
+        console.error(`[chat ${id}] agent run failed:`, err);
         send({ type: 'error', message: err instanceof Error ? err.message : String(err) });
       } finally {
         controller.close();

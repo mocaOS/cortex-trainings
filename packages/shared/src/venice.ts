@@ -72,8 +72,19 @@ export class VeniceClient {
         const retryAfter = Number(res.headers.get('Retry-After') ?? '0');
         await this.wait(retryAfter > 0 ? retryAfter * 1000 : Math.min(2000 * 2 ** n, 20000));
       } catch (err) {
-        // Network-level failure: no response at all.
-        lastError = err instanceof Error ? err.message : String(err);
+        // Network-level failure: no response at all. Surface undici's cause code —
+        // a bare "fetch failed" hid a 300s headers timeout behind four silent retries.
+        const cause = (err as { cause?: { code?: string } })?.cause?.code;
+        const message = err instanceof Error ? err.message : String(err);
+        lastError = cause ? `${message} (${cause})` : message;
+        // A headers/body timeout is not a transient blip — the request already ran
+        // for five minutes. Retrying it three more times just burns twenty of them.
+        if (cause === 'UND_ERR_HEADERS_TIMEOUT' || cause === 'UND_ERR_BODY_TIMEOUT') {
+          throw new Error(
+            `Venice ${what}: ${lastError}. The response did not start within Node's 300s ` +
+              'fetch timeout — non-streaming completions this large need stream:true.',
+          );
+        }
         if (n === tries - 1) break;
         await this.wait(Math.min(2000 * 2 ** n, 20000));
       }
