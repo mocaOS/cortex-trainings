@@ -162,6 +162,7 @@ ${styleRule}
   - voiceover: the exact voiceover script from the curriculum (target language).
   - medium "film": fill shots[] with the English prompts; each shot duration is "5s", "10s" or "15s" — sum should be just above the voiceover length. Prepend nothing; include the styleBlock content yourself in each prompt. animationBeats stays [].
     Set continuesPreviousScene on every shot: true only when the shot stays in the SAME place with the SAME subject and the action simply carries on (a camera move, a closer angle, the next moment). Set it false for the first shot and for any cut to a different location, subject or time — a forest that becomes a showroom is a cut, not a continuation. Getting this wrong makes the video morph one setting into another inside a single clip.
+    **Never mark more than two shots in a row as continuations.** A continuation is generated from the previous clip's last frame, so it inherits that frame's drift and gets no composition of its own; a long chain hands one generated frame control of a whole film and every step after it compounds the error. If three consecutive shots would continue, make the third a cut — find the genuine change of angle, place or moment in the narration and put it there.
     Set featuresCharacter on every shot — **the storyboard decides this, not the character**. Two hard rules, then the judgement call:
       1. **The FIRST shot of every film MUST have featuresCharacter: false.** Establish the place, the situation or the stakes before any character appears. No exceptions unless the curriculum's own text puts the guide on screen in the opening second.
       2. **At least half of a film's shots MUST have featuresCharacter: false** — in a 4-shot film that is at least 2, in a 3-shot film at least 2, in a 6-shot film at least 3. Count them before you answer.
@@ -188,6 +189,12 @@ ${styleRule}
   real learner might believe. Two-option quizzes are a coin flip — if the curriculum wrote a
   scenario with two buttons, add the plausible third reading it omitted rather than shipping a
   50/50 guess. Only the inherently binary forms (myth_fact, find_mistakes) carry exactly two.
+- **Every level needs a check the learner can get wrong.** "slider" is self-assessment with no
+  correct answer, so it must never be a level's only interaction — least of all the first level's,
+  which is where comprehension is established. If the curriculum offers a level nothing but a
+  self-assessment, convert its material into the closest graded kind (quiz, myth_fact,
+  find_mistakes, sort_order or match_pairs) using that level's own content. A slider is worth
+  keeping as a change of pace only where a level's graded check lives elsewhere.
 - cheatSheet: the key takeaways (one string per level, target language).
 - pronunciations: respellings for terms a text-to-speech engine would read out wrong. The voiceover
   text is SPOKEN, never displayed, so the written spelling must stay canonical everywhere while the

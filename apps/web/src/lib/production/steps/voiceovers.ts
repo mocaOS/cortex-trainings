@@ -98,6 +98,37 @@ function applyPronunciations(text: string, rules: PlanPronunciation[]): string {
 }
 
 /**
+ * Terms that *look* like TTS will mangle them but have no respelling rule.
+ *
+ * The pronunciation map is only as good as the extractor's recall, and a miss is silent — the audio
+ * synthesizes fine, QA passes, and you find out by listening. This does not guess a respelling; it
+ * refuses to be quiet about a term nobody decided on. Three shapes catch most of it:
+ * letters mixed with digits (`DeCC0s`, `v2Ray`), internal capitals past the first letter
+ * (`ComfyUI`, `ElizaOS`), and all-caps runs long enough to be a coined name rather than an
+ * everyday initialism.
+ *
+ * Deliberately not flagged: 2–3 letter all-caps (`API`, `ETH`, `DNA`, `CC0` is caught by the digit
+ * rule instead), because spelling those out is usually correct and flagging them would bury the
+ * real misses in noise.
+ */
+function suspiciousTerms(text: string, rules: PlanPronunciation[]): string[] {
+  const covered = rules.map((r) => r.written);
+  const hits = new Set<string>();
+  for (const raw of text.split(/\s+/)) {
+    const token = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    if (token.length < 3) continue;
+    const hasDigitAndLetter = /\p{L}/u.test(token) && /\p{N}/u.test(token);
+    const innerCaps = /^\p{Lu}?\p{Ll}+\p{Lu}/u.test(token);
+    const capsRun = /^\p{Lu}{4,}$/u.test(token);
+    if (!hasDigitAndLetter && !innerCaps && !capsRun) continue;
+    // Covered if any rule's written form appears in the token (or the token in it).
+    if (covered.some((w) => token.includes(w) || w.includes(token))) continue;
+    hits.add(token);
+  }
+  return [...hits];
+}
+
+/**
  * One TTS call per sentence, each sped up via ffmpeg (Venice's `speed` is a no-op on
  * some models) and re-encoded small. Concatenating them yields an exact sentence
  * timeline, which drives the animation beats — no flaky transcription round-trip.
@@ -116,6 +147,19 @@ export async function stepVoiceovers(ctx: RunContext): Promise<void> {
     ctx.log(
       'voiceovers',
       `respelling for TTS: ${rules.map((r) => `${r.written}→${r.spoken}`).join(', ')}`,
+    );
+  }
+  // Loud about a possible miss, rather than letting it surface in the finished audio.
+  const unruled = suspiciousTerms(
+    plan.levels.map((l) => l.voiceover).join(' '),
+    rules,
+  );
+  if (unruled.length > 0) {
+    ctx.log(
+      'voiceovers',
+      `NOTE: no pronunciation rule for ${unruled.length} term(s) TTS may mangle — ` +
+        `${unruled.slice(0, 12).join(', ')}${unruled.length > 12 ? ', …' : ''}. ` +
+        `Listen to these, and add them to plan.json "pronunciations" if they come out wrong.`,
     );
   }
 

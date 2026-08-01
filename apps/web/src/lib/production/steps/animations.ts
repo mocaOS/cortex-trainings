@@ -7,8 +7,11 @@ import type { RunContext } from '../runner';
 import { muxVoiceover, webmToMp4 } from '../ffmpeg';
 import { voPath, type VoiceoverInfo } from './voiceovers';
 
-/* Beat times come from the sentence timeline built during synthesis (exact), so
-   cue matching only has to pick the right sentence. */
+/* Beat times come from the sentence timeline built during synthesis (exact), so cue matching only
+   has to locate the cue within it — and then interpolate, because a segment is not always one
+   sentence. The TTS chunker deliberately merges a sentence into its predecessor when that
+   predecessor is short, so a stray fragment is never synthesized alone. That is right for audio
+   and it means one segment can contain two cues. */
 
 /**
  * HyperFrames stand-in: a deterministic 1920×1080 HTML scene (dark, accent color,
@@ -24,26 +27,70 @@ function normalize(s: string): string[] {
     .filter(Boolean);
 }
 
-/** Map each beat cue to a start time using the STT segments; fall back to even spacing. */
+/**
+ * Where in a segment the cue's words actually start, as a fraction of that segment.
+ *
+ * Returns the best-scoring window and its offset, so two cues inside one merged segment resolve to
+ * different times instead of one of them going unresolved.
+ */
+function locateCue(cueWords: Set<string>, segmentText: string): { score: number; frac: number } {
+  const words = normalize(segmentText);
+  if (words.length === 0) return { score: 0, frac: 0 };
+  // Slide a window the length of the cue across the segment; the best-matching window's start is
+  // where the narration reaches this beat.
+  const span = Math.max(1, Math.min(cueWords.size, words.length));
+  let bestHits = 0;
+  let bestStart = 0;
+  for (let start = 0; start + 1 <= words.length; start++) {
+    let hits = 0;
+    for (let k = start; k < Math.min(start + span, words.length); k++) {
+      if (cueWords.has(words[k])) hits++;
+    }
+    if (hits > bestHits) {
+      bestHits = hits;
+      bestStart = start;
+    }
+  }
+  return { score: bestHits / Math.max(1, cueWords.size), frac: bestStart / words.length };
+}
+
+/**
+ * Map each beat cue to a start time using the synthesis timeline; fall back to even spacing.
+ *
+ * Segments are searched *without* consuming them. An earlier version advanced past each matched
+ * segment, which starved every later beat whose cue shared a segment with an earlier one — and the
+ * chunker merges short sentences, so that was common. The symptom was a 40-second animation showing
+ * one line for 30 seconds and then dumping four beats in the last five: beat 2 went unresolved, and
+ * beats 3–5 cascaded behind it into the fallback. Beats are ordered, so a match is only accepted at
+ * or after the previous beat's position, which keeps them in sequence without excluding a shared
+ * segment.
+ */
 export function beatTimes(beats: PlanAnimationBeat[], vo: VoiceoverInfo): number[] {
   const times: number[] = [];
-  let searchFrom = 0;
+  // Position of the previous resolved beat, as (segmentIndex, fractionWithinSegment).
+  let floorSeg = 0;
+  let floorFrac = 0;
   for (const beat of beats) {
     const cueWords = new Set(normalize(beat.cue));
     let best = -1;
     let bestScore = 0;
-    for (let i = searchFrom; i < vo.segments.length; i++) {
-      const segWords = normalize(vo.segments[i].text);
-      const overlap = segWords.filter((w) => cueWords.has(w)).length;
-      const score = overlap / Math.max(1, cueWords.size);
+    let bestFrac = 0;
+    for (let i = floorSeg; i < vo.segments.length; i++) {
+      const { score, frac } = locateCue(cueWords, vo.segments[i].text);
+      // Never place a beat before the previous one inside the same segment.
+      if (i === floorSeg && frac < floorFrac) continue;
       if (score > bestScore) {
         bestScore = score;
         best = i;
+        bestFrac = frac;
       }
     }
     if (best >= 0 && bestScore >= 0.34) {
-      times.push(vo.segments[best].start);
-      searchFrom = best + 1;
+      const seg = vo.segments[best];
+      const span = Math.max(0, seg.end - seg.start);
+      times.push(seg.start + span * bestFrac);
+      floorSeg = best;
+      floorFrac = bestFrac;
     } else {
       times.push(-1); // resolve in the fallback pass
     }

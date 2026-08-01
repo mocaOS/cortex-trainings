@@ -31,8 +31,14 @@ changes cost, which is why the quote comes before spending.
 ## 2. Reference image — *pauses for you*
 
 Two candidates of the guide character (`gpt-image-2`, 16:9, 1K, high). **Pick the one without
-baked-in text**: this image conditions every video, so lettering in it bleeds into all of them.
-GPT Image 2 renders text well and therefore likes writing the character's name into the frame.
+baked-in text** — GPT Image 2 renders text well and therefore likes writing the character's name
+into the frame.
+
+What the pick actually governs depends on whether the project has character uploads. Without them
+the anchor *is* the character definition: every start frame that features the guide is conditioned
+on it, so lettering or a bad likeness propagates into every shot. With uploads, the start frames
+use those directly and the anchor is only the training's title-screen hero plus a fallback — still
+worth choosing well, but no longer the thing that decides how the guide looks on film.
 
 With **uploaded character references** the candidates are generated differently: two
 `/image/multi-edit` calls (`gpt-image-2-edit`) conditioned on the uploaded images themselves —
@@ -218,6 +224,24 @@ land next to each other: conditioned on one style upload, the first run returned
 were all a vast symmetrical hall shot dead-on. They matched the aesthetic perfectly and gave the
 five levels no visual distinctness at all. Matching the look is the goal; repeating one composition
 five times is not.
+
+## 5b. Animation beat timing
+
+Beats appear at times derived from the synthesis timeline, and the cue is matched *within* a
+segment rather than to it. This matters because a segment is not always one sentence: the TTS
+chunker merges a sentence into its predecessor when that predecessor is short, so a stray fragment
+is never synthesized alone. Two cues can therefore share one segment.
+
+An earlier version consumed each matched segment — `searchFrom = best + 1` — which starved every
+later beat whose cue shared a segment with an earlier one. Measured on a finished training: three
+of five beats unresolved, the one that did resolve landed at 31.8s of a 38.3s clip for a line the
+narrator speaks at 3s, and the fallback pass bunched the rest into the final five seconds. The
+animation showed a title and one line for 30 of 40 seconds. Nothing logged it and QA passed it,
+because the video decodes perfectly.
+
+Cues are now located by sliding a window across the segment's words, giving a fraction that
+interpolates a time inside it, and segments are no longer excluded once matched — order is kept by
+refusing to place a beat earlier than the previous one within the same segment.
 
 Cost: ~$0.34 each with style references, ~$0.26 without (1K, high). This is deliberately no longer
 the medium-quality tier: these are full-screen, learner-facing visuals, and the few cents saved
