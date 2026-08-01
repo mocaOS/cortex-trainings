@@ -285,7 +285,11 @@ function completeLevel(li, earned){
   go(state.screen+1);
 }
 
-/* Appends the button that leaves an interaction once it is resolved. */
+/* Appends the button that leaves an interaction once it is resolved.
+   Pass the CARD, never the .feedback box: the box's text is written with innerHTML, so a button
+   appended into it becomes an inline sibling of that text and wraps into the paragraph. Sitting
+   after the block-level .feedback it starts on its own line, which is what renderQuestions
+   already does with its "next" button. */
 function addContinue(container, li){
   if (container.querySelector('.continue-btn')) return;
   const c=document.createElement('button');
@@ -355,17 +359,17 @@ function renderSort(el, inter, li){
     if (ok){
       fb.innerHTML='<strong>'+T.correct+'</strong> '+esc(q.explanation||'');
       addXp(attempt===0?(inter.xp||20):Math.ceil((inter.xp||20)/2));
-      addContinue(fb, li);
+      addContinue(card, li);
     } else {
       attempt++;
       fb.innerHTML='<strong>'+T.wrong+'</strong> '+esc(q.explanation||'');
-      if (attempt>=2){ addContinue(fb, li); }
+      if (attempt>=2){ addContinue(card, li); }
       else {
-        const r=document.createElement('button'); r.className='btn'; r.style.marginTop='10px'; r.textContent=T.retry;
-        r.onclick=()=>{ picked=[]; fb.className='feedback'; fb.innerHTML='';
+        const r=document.createElement('button'); r.className='btn retry-btn'; r.style.marginTop='12px'; r.textContent=T.retry;
+        r.onclick=()=>{ picked=[]; fb.className='feedback'; fb.innerHTML=''; r.remove();
           wrap.querySelectorAll('.opt').forEach((b,i)=>{ b.disabled=false; b.classList.remove('sel'); b.textContent=b.textContent.replace(/^\\d+\\. /,''); });
         };
-        fb.appendChild(r);
+        card.appendChild(r);
       }
     }
   }
@@ -436,19 +440,19 @@ function renderMatch(el, inter, li){
     fb.innerHTML='<strong>'+(ok?T.correct:T.wrong)+'</strong> '+right.length+'/'+items.length+'. '+esc(resolution);
     if (ok){
       addXp(attempt===0?(inter.xp||20):Math.ceil((inter.xp||20)/2));
-      addContinue(fb, li);
+      addContinue(card, li);
     } else if (attempt>=1){
-      addContinue(fb, li);
+      addContinue(card, li);
     } else {
       attempt++;
-      const r=document.createElement('button'); r.className='btn'; r.style.marginTop='12px';
+      const r=document.createElement('button'); r.className='btn retry-btn'; r.style.marginTop='12px';
       r.textContent=T.retry;
       r.onclick=()=>{
         // Keep the pairings that were right; the learner only redoes the rest.
         items.forEach(it=>{ if (assigned.get(it.i)!==it.correct) assigned.delete(it.i); });
-        fb.className='feedback'; fb.innerHTML=''; draw();
+        fb.className='feedback'; fb.innerHTML=''; r.remove(); draw();
       };
-      fb.appendChild(r);
+      card.appendChild(r);
     }
   }
 
