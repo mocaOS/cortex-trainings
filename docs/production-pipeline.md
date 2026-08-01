@@ -87,28 +87,81 @@ written without it, and because the reference image is a hero portrait, every fi
 same portrait. Roughly half the shots of a film should be character-free, and the opening shot
 almost always should be.
 
-A character-free shot still keeps the look. It is generated from the uploaded **style**
-references when the project has them, and otherwise from the text-to-video sibling of the
-reference model with the style block in the prompt. Losing the character must never mean losing
-the aesthetic. Four modes result, logged per shot:
+A character-free shot still keeps the look, because its start frame is built from the uploaded
+**style** references. Losing the character must never mean losing the aesthetic.
 
-| Mode | When | Generated from |
+### Every shot starts from a frame
+
+**No shot is generated from reference images any more.** Each one starts from a still, and the
+video model only animates it. Three sources:
+
+| Source | When | Start frame is |
 |---|---|---|
-| `chain` | continues the previous scene | previous last frame |
-| `character` | a cut where the guide serves the shot | anchor + uploaded character images |
-| `styled` | a cut with no guide, style uploads exist | uploaded style images only |
-| `plain` | a cut with no guide, no style uploads | prompt + style block |
+| `chain` | continues the scene, guide presence unchanged | the previous clip's last frame (ffmpeg) |
+| `continuation` | continues the scene, but the guide arrives or leaves | built from that last frame **plus** the references |
+| `startframe` | opens a new scene | built by the image model for this shot |
 
-Prompts state explicitly what a reference may contribute — identity only, or palette and
-lighting only — because reference images otherwise dictate framing and subjects too (see
-[venice-notes.md](venice-notes.md)).
+**Chain only when the cast is unchanged.** Plain chaining is blind to the character: it is the one
+path that injects no identity. A shot marked `featuresCharacter` that also continued its scene used
+to take it anyway, and the result was measured on a finished film — the guide was absent for seven
+of ten seconds and then materialised from prompt text alone, never having been shown the upload;
+in the other film it was a distant speck until the last second. The shot *after* it, marked
+character-**free**, then chained off that final frame and inherited the guide for its whole
+duration. The flag was effectively inverted for both. Worse, across that entire run every generated
+frame logged `0 character + 1 style reference(s)` — the uploaded character reference influenced
+nothing but the anchor.
 
-Shot durations are clamped to what each model supports (reference-to-video: 5s or 10s; chaining:
-5s, 10s, 15s) and then **grown until the chain covers the voiceover**, because every uncovered
-second becomes a frozen last frame. The step logs the shortfall when it cannot fully cover it.
+So a shot that adds or drops the guide relative to its predecessor gets a `continuation` frame
+instead: the previous last frame as the multi-edit base, with the character and style references
+alongside it, so the scene carries over *and* the cast is right, rather than trading one for the
+other. These frames are built lazily inside the generation loop rather than up front, because their
+base image does not exist until the previous clip does.
+
+The start frames are built by `steps/startframes.ts` with `/image/multi-edit`, before any video
+for that level is queued, and cached at `media/films/level<N>_shot<M>_start.jpg` — so they are
+inspectable while the clips are still rendering, and a resumed run never pays for one twice. A
+shot that features the guide is conditioned on the character uploads (or the picked anchor, for
+projects without uploads) **plus** the style uploads; a character-free shot gets the style uploads
+only, because handing the character to a frame written without one simply puts it back in. With no
+uploads at all, the frame comes from `/image/generate` with the style block.
+
+This replaced four conditioning modes (`character`, `styled`, `plain` and chaining) that fed three
+different video models. Reference-to-video was being asked to hold the character's identity, adopt
+an uploaded aesthetic *and* compose the storyboard's shot, all at once, and it lost all three
+often enough to make films the weakest part of a training:
+
+- **Identity drifted.** A character's eyepatch — the single most identifying thing about him —
+  was simply absent in one shot of a finished film, and the crisp cel-shaded look of the upload
+  was replaced by generic dark painterly rendering in every clip.
+- **Framing bled out of the references.** The anchor is a hero portrait, so cuts came back as
+  centred, symmetrical, camera-facing portraits despite a prompt clause and a negative prompt
+  both forbidding exactly that.
+- **Style uploads were reproduced *as artworks*.** One `styled` shot came back as a framed
+  picture with a grey mat and a drop shadow, wrapped around a pillarboxed near-portrait canvas.
+  Style references are flat artworks, and the model reasonably concluded that was the brief.
+
+An image-edit model does all three markedly better, a start-frame video model takes its aspect
+ratio from the frame it is given (`gpt-image-2-edit` returns an exact 16:9 at 1536×864, which is
+also why the baked-bar problem mostly disappears), and a wrong frame costs a fraction of a wrong
+clip — so it can just be regenerated. Because one model now generates every shot, resolution,
+frame rate and grade cannot drift between cuts either.
+
+The frame is a strong steer, not a lock: measured across finished projects, image-to-video
+sometimes invented bars from a clean start frame and sometimes healed bars in a dirty one. So the
+negative prompt still names the framings we never want, and the padding detection and crop stay.
+
+Shot durations are clamped to what the start-frame model supports and then **grown until the
+chain covers the voiceover**, because every uncovered second becomes a frozen last frame. The step
+logs the shortfall when it cannot fully cover it.
 
 Then: **every shot is quoted and the pipeline stops** with the total. Nothing is generated until
-you confirm.
+you confirm. The quote covers the start frames too, priced from the live catalog like everything
+else — they are a real line item, not a rounding error. Measured on a 10-shot, 2-film training:
+$13.02 of video plus $3.26 of start frames, so frames are roughly a quarter on top. That is the
+right trade. The video half is unchanged by this design (the same shots at the same durations and
+resolution quoted at exactly $13.02 before), so the $3.26 buys correct composition, a consistent
+character and a matching aesthetic on top of video that used to have none of the three — and it
+moves the retry unit from ~$1.60 per clip to ~$0.36 per frame.
 
 Finally the shots are concatenated, trimmed to voiceover + 1s, and the voiceover is laid
 underneath (video padded by cloning the last frame if it's short, audio padded with silence if
@@ -150,10 +203,25 @@ Cost: zero. About 45 seconds per scene.
 
 ## 6. Images
 
-Interaction-screen visuals for levels that plan one (`gpt-image-2`, medium quality, ~90 KB
-each after compression). Prompts carry the shared style block plus "no readable text, no faces".
+Interaction-screen visuals for levels that plan one. Prompts carry the shared style block plus
+"no readable text, no faces".
 
-Cost: ~$0.15 each.
+When the project has uploaded **style** references these are built with `/image/multi-edit`
+against those images rather than from the style block as text, at the same quality as a film's
+start frames. The style block is a written description of an aesthetic, and a written description
+is a lossy way to hit one — it left the interaction screens in a slightly different world than the
+films, which are conditioned on the uploads themselves. Same references, same look. Projects
+without style uploads still use `/image/generate` with the style block.
+
+The prompt also **forces compositional variety**, because these are generated independently but
+land next to each other: conditioned on one style upload, the first run returned five images that
+were all a vast symmetrical hall shot dead-on. They matched the aesthetic perfectly and gave the
+five levels no visual distinctness at all. Matching the look is the goal; repeating one composition
+five times is not.
+
+Cost: ~$0.34 each with style references, ~$0.26 without (1K, high). This is deliberately no longer
+the medium-quality tier: these are full-screen, learner-facing visuals, and the few cents saved
+were visible.
 
 ## 7. Assemble
 

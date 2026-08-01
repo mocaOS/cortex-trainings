@@ -177,9 +177,13 @@ class ProductionRun {
         }
         if (quote.totalUsd > 0 && !alreadyApproved) {
           await this.patchState({ videoQuoteUsd: quote.totalUsd, status: 'waiting_input' });
+          const frames =
+            quote.frames > 0
+              ? ` (incl. ${quote.frames} start frame${quote.frames === 1 ? '' : 's'} ≈ $${quote.framesUsd.toFixed(2)})`
+              : '';
           await this.patchStep('films', {
             status: 'waiting_input',
-            detail: `${quote.shots} shots ≈ $${quote.totalUsd.toFixed(2)} — confirm to generate`,
+            detail: `${quote.shots} shots ≈ $${quote.totalUsd.toFixed(2)}${frames} — confirm to generate`,
           });
           await ctx.waitForInput<boolean>('video');
           await this.patchState({ status: 'running', videoConfirmed: true });

@@ -82,6 +82,18 @@ export interface PlanLevel {
   interaction: PlanInteraction | null;
 }
 
+/**
+ * A term whose written form the TTS engine would mispronounce, and how to spell it so it is *said*
+ * correctly. Applied to voiceover text on its way to TTS and nowhere else — the written spelling
+ * stays canonical everywhere a learner can read it.
+ */
+export interface PlanPronunciation {
+  /** The term exactly as it appears in the voiceover text, e.g. "DeCC0s". */
+  written: string;
+  /** A respelling that sounds right when read aloud, e.g. "Decos". */
+  spoken: string;
+}
+
 export interface ProductionPlan {
   title: string;
   language: string;
@@ -94,6 +106,11 @@ export interface ProductionPlan {
   finalCheck: PlanInteraction;
   /** Key takeaways for the summary screen / cheat sheet. */
   cheatSheet: string[];
+  /**
+   * Respellings for terms TTS gets wrong. Optional: plans extracted before this existed have none,
+   * and most trainings need none.
+   */
+  pronunciations?: PlanPronunciation[];
 }
 
 export type StepId =

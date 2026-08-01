@@ -89,6 +89,8 @@ export class VeniceMedia {
   private baseUrl: string;
   /** The video catalog is immutable for a process lifetime; fetch it at most once. */
   private videoCatalog: Promise<Map<string, VideoModelConstraints>> | null = null;
+  /** Raw `model_spec.pricing` per model id, for the image models. Fetched at most once. */
+  private imagePricing: Promise<Map<string, any>> | null = null;
 
   constructor(opts: VeniceMediaOptions) {
     this.apiKey = opts.apiKey;
@@ -131,6 +133,50 @@ export class VeniceMedia {
         `Video model "${model}" is not in Venice's live catalog — check the id against GET /models?type=video`,
       );
     return found;
+  }
+
+  /**
+   * What one image will cost, from the live catalog — there is no static price list, and the
+   * spread is wide enough to matter (`gpt-image-2-edit` at 1K is $0.03 low, $0.34 high).
+   *
+   * Returns null rather than throwing when the model or its tier is not priced in the catalog:
+   * an unknown price is a reason to say so in the quote, not a reason to fail a run that would
+   * otherwise succeed. `type=all` is used because the edit models are absent from `type=image`.
+   */
+  async imagePrice(
+    model: string,
+    opts: { resolution?: string; quality?: string; inputImages?: number } = {},
+  ): Promise<number | null> {
+    this.imagePricing ??= (async () => {
+      const res = await this.withRetry('models?type=all', () =>
+        fetch(`${this.baseUrl}/models?type=all`, { headers: this.headers(false) }),
+      );
+      if (!res.ok) await this.fail(res, 'models?type=all');
+      const json = (await res.json()) as any;
+      const map = new Map<string, any>();
+      for (const m of json.data ?? json.models ?? []) {
+        const id = m.id ?? m.name;
+        if (id && m.model_spec?.pricing) map.set(id, m.model_spec.pricing);
+      }
+      return map;
+    })();
+
+    const pricing = (await this.imagePricing).get(model);
+    if (!pricing) return null;
+    const res = opts.resolution ?? '1K';
+    const base =
+      (opts.quality ? pricing.quality?.[res]?.[opts.quality]?.usd : undefined) ??
+      pricing.resolutions?.[res]?.usd ??
+      pricing.inpaint?.usd;
+    if (typeof base !== 'number') return null;
+
+    // Several edit models bill per input image beyond the first.
+    const extra = pricing.inputImages;
+    const included = typeof extra?.included === 'number' ? extra.included : 1;
+    const perExtra = extra?.additional?.usd;
+    const n = opts.inputImages ?? 0;
+    const surcharge = typeof perExtra === 'number' ? Math.max(0, n - included) * perExtra : 0;
+    return base + surcharge;
   }
 
   private headers(json = true): Record<string, string> {

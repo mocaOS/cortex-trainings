@@ -17,12 +17,12 @@ All configuration is environment variables. Copy `.env.example` to `.env` at the
 | `VENICE_BASE_URL` | `https://api.venice.ai/api/v1` | OpenAI-compatible |
 | `VENICE_AGENT_MODEL` | `claude-fable-5` | 1M context, function calling. Switch to a Venice-hosted model (e.g. `zai-org-glm-4.7`) if inference must stay private |
 | `VENICE_MAX_OUTPUT_TOKENS` | `64000` | A whole curriculum travels inside one tool call's arguments. Too low truncates it mid-JSON — see [troubleshooting.md](troubleshooting.md) |
-| `VENICE_IMAGE_MODEL` | `gpt-image-2` | 16:9, 1K, quality high/medium |
-| `VENICE_IMAGE_EDIT_MODEL` | `gpt-image-2-edit` | Renders the guide character from **uploaded reference images** via `/image/multi-edit`. Only used when a project has character refs |
+| `VENICE_IMAGE_MODEL` | `gpt-image-2` | 16:9, 1K, high. Used where a project has no reference uploads to condition on |
+| `VENICE_IMAGE_EDIT_MODEL` | `gpt-image-2-edit` | Builds **every generated still** via `/image/multi-edit`: the guide anchor, each shot's start frame, and the interaction images. Pick the strongest option, not the cheapest — this model decides how a training looks and seeds video costing 4–5× more. Not freely swappable: needs 4+ input images at 16:9, which rules out several edit models (see [venice-notes.md](venice-notes.md)) |
 | `VENICE_VISION_MODEL` | = `VENICE_AGENT_MODEL` | Analyzes uploaded character/style reference images into prompt text. Must carry `supportsVision` in the catalog (`claude-fable-5` does) |
-| `VENICE_VIDEO_MODEL` | `wan-2-7-reference-to-video` | first shot of a sequence; keeps the guide character consistent. **5s/10s only** |
-| `VENICE_VIDEO_CHAIN_MODEL` | `wan-2-7-image-to-video` | follow-up shots, chained from the previous last frame. 5s/10s/15s |
-| `VENICE_VIDEO_TEXT_MODEL` | text-to-video sibling of `VENICE_VIDEO_MODEL` | shots the storyboard marks character-free, when the project has no style references. The default swaps `-reference-to-video` for `-text-to-video` so the family never changes mid-film — a Wan clip beside a MiniMax clip differs in resolution, frame rate and grade, and the cut is visible |
+| `VENICE_VIDEO_MODEL` | `wan-2-7-reference-to-video` | Selects the video model **family**. Films run entirely on start frames now, so a `-reference-to-video` or `-text-to-video` suffix here is swapped for `-image-to-video`; one film must never mix families, because a Wan clip beside a MiniMax clip differs in resolution, frame rate and grade and the cut is visible |
+| `VENICE_VIDEO_CHAIN_MODEL` | derived from `VENICE_VIDEO_MODEL` | Overrides the resolved start-frame model outright. The one model films use |
+| ~~`VENICE_VIDEO_TEXT_MODEL`~~ | — | **No longer used.** Every shot is generated from a start frame, so there is no text-to-video role. The films step logs a note if it is still set |
 | `VENICE_VIDEO_RESOLUTION` | `1080p` | |
 | `VENICE_TTS_MODEL_DE` | `tts-gradium-v1` | German confirmed |
 | `VENICE_TTS_VOICE_DE` | `Maximilian` | |

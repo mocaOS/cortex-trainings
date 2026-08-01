@@ -11,29 +11,35 @@ export function getMedia(): VeniceMedia {
 
 export const mediaModels = {
   image: process.env.VENICE_IMAGE_MODEL ?? 'gpt-image-2',
-  /** Renders the guide character from uploaded reference images (`/image/multi-edit`). */
-  imageEdit: process.env.VENICE_IMAGE_EDIT_MODEL ?? 'gpt-image-2-edit',
-  /** First shot: character-consistent reference-to-video. */
-  videoReference: process.env.VENICE_VIDEO_MODEL ?? 'wan-2-7-reference-to-video',
-  /** Follow-up shots: start-frame chaining. */
-  videoChain: process.env.VENICE_VIDEO_CHAIN_MODEL ?? 'wan-2-7-image-to-video',
   /**
-   * Shots the storyboard marks as character-free, when the project has no style reference
-   * images to anchor them with.
+   * Builds every generated still: the guide-character anchor, each shot's start frame and the
+   * interaction-screen images, all through `/image/multi-edit` when the project has reference
+   * uploads.
    *
-   * Derived from the configured reference model rather than defaulting to a fixed id, because
-   * the two must stay in the same model family: a Wan clip next to a MiniMax clip inside one
-   * film differs in resolution, frame rate and grade, and the cut is visible. Every family in
-   * the catalog names its variants the same way (`…-reference-to-video` / `…-text-to-video`),
-   * so swapping the suffix lands on the sibling. `VENICE_VIDEO_TEXT_MODEL` overrides it.
+   * This model decides how a training looks, and it is the cheap half of the pipeline — a frame
+   * costs a few percent of the shot it seeds, and a bad frame can simply be regenerated where a
+   * bad clip cannot. Pick the strongest option, not the cheapest. Not every edit model fits:
+   * `luma-uni-1-max-edit` accepts a single input image, `grok-imagine-quality-edit` and
+   * `qwen-image-2-pro-edit` cap at three, and `wan-2-7-pro-edit` and `gpt-image-1-5-edit` reject
+   * `aspect_ratio: "16:9"` outright — this flow needs four-plus inputs at 16:9.
    */
-  get videoText(): string {
-    const explicit = process.env.VENICE_VIDEO_TEXT_MODEL;
+  imageEdit: process.env.VENICE_IMAGE_EDIT_MODEL ?? 'gpt-image-2-edit',
+  /**
+   * The one video model films use. Every shot is generated from a start frame — a continuation
+   * from the previous clip's last frame, everything else from a frame built by the image model —
+   * so there is no longer a reference-to-video or text-to-video role to configure.
+   *
+   * `VENICE_VIDEO_MODEL` still selects the *family*: its `-reference-to-video` or
+   * `-text-to-video` suffix is swapped for `-image-to-video`, because one film must not mix
+   * families (a Wan clip beside a MiniMax clip differs in resolution, frame rate and grade, and
+   * the cut is visible). `VENICE_VIDEO_CHAIN_MODEL` overrides the result outright.
+   */
+  get videoChain(): string {
+    const explicit = process.env.VENICE_VIDEO_CHAIN_MODEL;
     if (explicit) return explicit;
-    const reference = this.videoReference;
-    return reference.includes('-reference-to-video')
-      ? reference.replace('-reference-to-video', '-text-to-video')
-      : 'wan-2-7-text-to-video';
+    const configured = process.env.VENICE_VIDEO_MODEL;
+    if (configured) return configured.replace(/-(?:reference|text)-to-video$/, '-image-to-video');
+    return 'wan-2-7-image-to-video';
   },
   stt: process.env.VENICE_STT_MODEL ?? 'openai/whisper-large-v3',
   ttsFor(language: string): { model: string; voice: string } {

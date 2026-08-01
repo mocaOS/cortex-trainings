@@ -1,6 +1,7 @@
 import 'server-only';
 import { promises as fs } from 'fs';
 import path from 'path';
+import type { PlanPronunciation } from '@cortex-trainings/shared';
 import type { RunContext } from '../runner';
 import { getMedia, mediaModels } from '../media-client';
 import { concatAudio, normalizeVoiceChunk, probeDuration } from '../ffmpeg';
@@ -75,6 +76,28 @@ export function splitSentences(text: string): string[] {
 }
 
 /**
+ * Rewrites terms TTS would mispronounce into a respelling that sounds right.
+ *
+ * Applied to the TTS input only. Voiceover text is never displayed — the learner reads the
+ * curriculum, the titles and the interactions, none of which come through here — so respelling for
+ * the ear costs nothing on screen, and the written form stays canonical. Fixing it upstream instead
+ * would put "Art Decos" into the curriculum, which is simply the wrong spelling of the thing.
+ *
+ * Longest `written` first, because these terms nest: a collection called "DeCC0s" is built on the
+ * "CC0" licence, and "CC0" genuinely *is* said "see-see-zero". Replacing the short form first would
+ * corrupt the long one.
+ */
+function applyPronunciations(text: string, rules: PlanPronunciation[]): string {
+  return [...rules]
+    .filter((r) => r.written.trim() !== '' && r.spoken.trim() !== '')
+    .sort((a, b) => b.written.length - a.written.length)
+    .reduce(
+      (acc, r) => acc.split(r.written).join(r.spoken),
+      text,
+    );
+}
+
+/**
  * One TTS call per sentence, each sped up via ffmpeg (Venice's `speed` is a no-op on
  * some models) and re-encoded small. Concatenating them yields an exact sentence
  * timeline, which drives the animation beats — no flaky transcription round-trip.
@@ -88,11 +111,21 @@ export async function stepVoiceovers(ctx: RunContext): Promise<void> {
 
   // One flat job list so the concurrency cap applies across all levels, and every
   // chunk is cached on disk — a retry after a Venice hiccup re-synthesizes only the gaps.
+  const rules = plan.pronunciations ?? [];
+  if (rules.length > 0) {
+    ctx.log(
+      'voiceovers',
+      `respelling for TTS: ${rules.map((r) => `${r.written}→${r.spoken}`).join(', ')}`,
+    );
+  }
+
   const jobs: Array<{ levelIndex: number; sentenceIndex: number; text: string }> = [];
   const perLevel = new Map<number, string[]>();
   for (const level of plan.levels) {
     const meta = path.join(dir, `level${level.index}.json`);
     if (await fs.access(meta).then(() => true).catch(() => false)) continue;
+    // Split first, respell second: sentence splitting keys off punctuation and abbreviations, and
+    // a respelling can drop the period that a split depends on.
     const sentences = splitSentences(level.voiceover);
     perLevel.set(level.index, sentences);
     ctx.log(
@@ -100,7 +133,11 @@ export async function stepVoiceovers(ctx: RunContext): Promise<void> {
       `level ${level.index}: ${sentences.length} sentences (${tts.model}/${tts.voice}, atempo ${mediaModels.ttsTempo})`,
     );
     sentences.forEach((text, i) =>
-      jobs.push({ levelIndex: level.index, sentenceIndex: i, text }),
+      jobs.push({
+        levelIndex: level.index,
+        sentenceIndex: i,
+        text: applyPronunciations(text, rules),
+      }),
     );
   }
   if (jobs.length === 0) {

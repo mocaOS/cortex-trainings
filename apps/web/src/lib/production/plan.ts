@@ -47,6 +47,7 @@ const PLAN_SCHEMA = {
       'levels',
       'finalCheck',
       'cheatSheet',
+      'pronunciations',
     ],
     properties: {
       title: { type: 'string' },
@@ -111,6 +112,18 @@ const PLAN_SCHEMA = {
       },
       finalCheck: INTERACTION_SCHEMA,
       cheatSheet: { type: 'array', items: { type: 'string' } },
+      pronunciations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['written', 'spoken'],
+          properties: {
+            written: { type: 'string' },
+            spoken: { type: 'string' },
+          },
+        },
+      },
     },
   },
 } as const;
@@ -175,7 +188,24 @@ ${styleRule}
   real learner might believe. Two-option quizzes are a coin flip — if the curriculum wrote a
   scenario with two buttons, add the plausible third reading it omitted rather than shipping a
   50/50 guess. Only the inherently binary forms (myth_fact, find_mistakes) carry exactly two.
-- cheatSheet: the key takeaways (one string per level, target language).`;
+- cheatSheet: the key takeaways (one string per level, target language).
+- pronunciations: respellings for terms a text-to-speech engine would read out wrong. The voiceover
+  text is SPOKEN, never displayed, so the written spelling must stay canonical everywhere while the
+  spoken form is fixed here. List every term in the voiceover scripts that a TTS engine would
+  mangle:
+    - names containing digits or leetspeak ("DeCC0s" is said "Decos", not "dee-see-see-zero-ess")
+    - unusual internal capitalisation, invented product names, non-obvious foreign words
+    - acronyms meant to be said as a word rather than spelled out
+  **Check the briefing for the answer first** — a user who writes 'Art DeCC0s (pronounced art
+  decos)' has told you exactly what to emit, and that parenthetical is an instruction to you, not
+  learner-facing copy.
+  \`written\` must appear in the voiceover text EXACTLY as written there, because it is matched
+  literally. Emit the longest form as its own entry when a term has several ("DeCC0s" and "DeCC0"
+  both, not just the stem).
+  **Do not "fix" a term that is already pronounced correctly by spelling it out.** In "CC0 — no
+  copyright", CC0 is the licence and "see-see-zero" is right; only the brand name built on top of
+  it is wrong. Adding a rule for CC0 would break the sentence that explains it.
+  Emit [] when nothing needs it, which is the common case.`;
 }
 
 export async function extractPlan(

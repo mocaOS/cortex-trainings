@@ -149,6 +149,36 @@ the character regardless of the shot's own described composition. Style referenc
 their subjects. Both need the prompt to say explicitly what to take from them — identity only, or
 palette/lighting/texture only — and the negative prompt to name the portrait framing.
 
+**The pipeline no longer relies on any of that.** Saying it in the prompt reduced the problem
+without solving it: cuts still came back as centred camera-facing portraits, a character's eyepatch
+went missing between shots of one film, and a style-anchored shot was rendered as a *framed
+artwork* — grey mat, drop shadow, pillarboxed canvas — because a style upload is a flat artwork and
+the model took that literally. Every shot is now generated from a start frame instead, and the
+frames are built with `/image/multi-edit`, where composition and identity are actually
+controllable. See [production-pipeline.md](production-pipeline.md) §4.
+
+### Not every edit model fits the start-frame flow
+
+Verified live (2026-08-01) by sending the same 4 images (1 character + 3 style) at
+`aspect_ratio: "16:9"`:
+
+- `gpt-image-2-edit` — works, and returns an **exact 16:9 at 1536×864**, which matters because a
+  start-frame video model takes its ratio from the frame. Best character fidelity of the models
+  tried. **At `quality: "high"` ($0.34/1K)** — at `medium` ($0.08) it is muddy and loses facial
+  detail, which is a tier difference, not a model difference. Do not judge it at medium.
+- `nano-banana-2-edit` ($0.10) and `seedream-v5-pro-edit` ($0.06) — both work and compose well;
+  both were weaker on identity (nano-banana dropped the eyepatch entirely). They return 1376×768,
+  which is 1.79 rather than exactly 16:9.
+- `luma-uni-1-max-edit` — **400, one input image only.**
+- `grok-imagine-quality-edit`, `qwen-image-2-pro-edit` — **400, maximum of 3 input images.**
+- `wan-2-7-pro-edit`, `gpt-image-1-5-edit` — **400, `aspect_ratio: "16:9"` not supported**
+  (`gpt-image-1-5-edit` offers only `auto`, `1:1`, `3:2`, `2:3`).
+
+So the input-image maximum *is* enforced per model even though the catalog does not expose it, and
+`VENICE_IMAGE_EDIT_MODEL` cannot be swapped freely: this flow needs four-plus inputs at 16:9.
+Cost is the wrong axis to choose on — the frame seeds a shot that costs 4–5× more and sets its
+composition, identity and aesthetic.
+
 ## Images — `gpt-image-2`
 
 Same model the skill originally used, available natively. 16:9 with `aspect_ratio`, 1K via
