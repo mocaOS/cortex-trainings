@@ -41,6 +41,12 @@ export async function POST(req: NextRequest, { params }: Params) {
           onCurriculumSaved: (version: number) => send({ type: 'curriculum_saved', version }),
         };
         for await (const event of runAgent(project.briefing, history, ctx, refs)) {
+          // runAgent yields errors instead of throwing, so the catch below never sees
+          // them. Without this, a failed run still leaves no trace in the terminal —
+          // which is exactly how two dead runs looked like clean 200s.
+          if (event.type === 'error') {
+            console.error(`[chat ${id}] agent error event:`, event.message);
+          }
           send(event);
           if (event.type === 'assistant') {
             await appendChat(id, {

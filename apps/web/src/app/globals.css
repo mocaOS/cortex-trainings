@@ -416,6 +416,19 @@ select:focus {
   color: var(--destructive);
 }
 
+/* Shown only while a run is in flight: closing or reloading the tab kills the run. */
+.warn-inline {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  background-color: var(--secondary);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius);
+}
+
 .curriculum {
   flex: 1;
   min-height: 0;

@@ -24,6 +24,7 @@ export function Workspace({ dict, projectId }: { dict: Dict; projectId: string }
   const [running, setRunning] = useState(false);
   const [input, setInput] = useState('');
   const feedRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/projects/${projectId}`);
@@ -41,9 +42,23 @@ export function Workspace({ dict, projectId }: { dict: Dict; projectId: string }
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });
   }, [feed]);
 
+  /**
+   * The SSE stream from this page is what drives the agent loop server-side, so a
+   * reload or a closed tab aborts the run and loses everything — a 20-minute run can
+   * die to a reflexive F5. The in-panel notice says so; this is the hard backstop.
+   */
+  useEffect(() => {
+    if (!running) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [running]);
+
   const push = (item: FeedItem) => setFeed((f) => [...f, item]);
 
   async function run(message?: string) {
+    const controller = new AbortController();
+    abortRef.current = controller;
     setRunning(true);
     if (message) push({ kind: 'user', text: message });
     try {
@@ -51,6 +66,7 @@ export function Workspace({ dict, projectId }: { dict: Dict; projectId: string }
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message ? { message } : {}),
+        signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new Error(await res.text());
 
@@ -95,8 +111,19 @@ export function Workspace({ dict, projectId }: { dict: Dict; projectId: string }
         }
       }
     } catch (err) {
-      push({ kind: 'error', text: err instanceof Error ? err.message : dict['error.generic'] });
+      // Stopping is a deliberate act, not a failure — but it still loses the run,
+      // so say that rather than showing a bare "AbortError".
+      const stopped = err instanceof DOMException && err.name === 'AbortError';
+      push({
+        kind: 'error',
+        text: stopped
+          ? dict['project.aborted']
+          : err instanceof Error
+            ? err.message
+            : dict['error.generic'],
+      });
     } finally {
+      abortRef.current = null;
       setRunning(false);
       reload();
     }
@@ -118,7 +145,14 @@ export function Workspace({ dict, projectId }: { dict: Dict; projectId: string }
   if (!data) return <p className="muted">…</p>;
   const { project, curriculum } = data;
   const approved = ['approved', 'producing', 'done'].includes(project.status);
-  const hasRun = feed.length > 0 || project.curriculumVersion > 0;
+  /**
+   * Keyed off a SAVED curriculum, not off feed length. Counting chat messages meant a
+   * run that appended the user's message and then died still counted as "has run", so
+   * the start button vanished forever and a failed project had no visible way to retry
+   * — while the panel next to it still said "Start the research run".
+   */
+  const hasRun = project.curriculumVersion > 0;
+  const attempted = feed.length > 0;
 
   return (
     <div>
@@ -147,9 +181,24 @@ export function Workspace({ dict, projectId }: { dict: Dict; projectId: string }
             )}
           </div>
 
+          {running && (
+            <>
+              <p className="warn-inline">{dict['project.dontClose']}</p>
+              <button
+                className="btn"
+                style={{ marginTop: '0.5rem', width: '100%' }}
+                onClick={() => {
+                  if (window.confirm(dict['project.abortConfirm'])) abortRef.current?.abort();
+                }}
+              >
+                {dict['project.abort']}
+              </button>
+            </>
+          )}
+
           {!hasRun && !running && (
             <button className="btn btn-primary" style={{ marginTop: '0.75rem', width: '100%' }} onClick={() => run()}>
-              {dict['project.startResearch']}
+              {attempted ? dict['project.retryResearch'] : dict['project.startResearch']}
             </button>
           )}
 

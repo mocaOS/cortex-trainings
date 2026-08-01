@@ -130,9 +130,25 @@ export class VeniceClient {
     }
   }
 
+  /**
+   * Streamed chat completion. Streaming is not a nicety here: Node's fetch aborts a
+   * request whose response has not STARTED within 300s, and writing a whole curriculum
+   * into one tool-call argument routinely takes longer than that. Non-streaming meant
+   * the response began only when the model was finished, so the big save_curriculum turn
+   * died on the timeout and took the run with it. Streamed, the headers arrive at once
+   * and every delta resets the idle clock, so only a genuinely stalled model fails.
+   *
+   * `onToken` exists so callers can show progress during a multi-minute completion —
+   * the silence in between was indistinguishable from a hang.
+   */
   async chat(
     messages: AgentMessage[],
-    opts?: { tools?: ToolDefinition[]; maxTokens?: number; temperature?: number },
+    opts?: {
+      tools?: ToolDefinition[];
+      maxTokens?: number;
+      temperature?: number;
+      onToken?: (delta: string) => void;
+    },
   ): Promise<ChatCompletionResult> {
     const res = await this.post(
       '/chat/completions',
@@ -142,7 +158,7 @@ export class VeniceClient {
         ...(opts?.tools?.length ? { tools: opts.tools, tool_choice: 'auto' } : {}),
         max_tokens: opts?.maxTokens ?? 16384,
         ...(opts?.temperature != null ? { temperature: opts.temperature } : {}),
-        stream: false,
+        stream: true,
       }),
       'chat/completions',
     );
@@ -153,14 +169,75 @@ export class VeniceClient {
       }
       throw new Error(`Venice chat/completions → ${res.status}: ${body.slice(0, 500)}`);
     }
-    const json = (await res.json()) as any;
-    const choice = json.choices?.[0];
-    if (!choice) throw new Error('Venice returned no choices');
+    if (!res.body) throw new Error('Venice chat/completions returned no body');
+
+    let content = '';
+    let finishReason = 'stop';
+    let usage: ChatCompletionResult['usage'];
+    // Sparse: tool-call deltas are addressed by `index`, and only the first delta of
+    // each carries id/name — the arguments arrive as fragments that must be concatenated
+    // in order. Reassembling these wrong is how a tool call turns into unparseable JSON.
+    const partials: Array<ToolCall | undefined> = [];
+    let sawChunk = false;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const raw of lines) {
+        const line = raw.replace(/\r$/, '').trim();
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
+        let chunk: any;
+        try {
+          chunk = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        sawChunk = true;
+        if (chunk.usage) usage = chunk.usage;
+        if (chunk.error) {
+          throw new Error(
+            `Venice chat/completions stream error: ${JSON.stringify(chunk.error).slice(0, 500)}`,
+          );
+        }
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+        const delta = choice.delta;
+        if (!delta) continue;
+        if (typeof delta.content === 'string' && delta.content) {
+          content += delta.content;
+          opts?.onToken?.(delta.content);
+        }
+        for (const tc of delta.tool_calls ?? []) {
+          const i: number = tc.index ?? 0;
+          const slot = (partials[i] ??= {
+            id: '',
+            type: 'function',
+            function: { name: '', arguments: '' },
+          });
+          if (tc.id) slot.id = tc.id;
+          if (tc.function?.name) slot.function.name = tc.function.name;
+          if (tc.function?.arguments) slot.function.arguments += tc.function.arguments;
+        }
+      }
+    }
+
+    if (!sawChunk) throw new Error('Venice chat/completions stream produced no chunks');
+
     return {
-      content: choice.message?.content ?? null,
-      toolCalls: choice.message?.tool_calls ?? [],
-      finishReason: choice.finish_reason ?? 'stop',
-      usage: json.usage,
+      content: content || null,
+      toolCalls: partials.filter((c): c is ToolCall => Boolean(c)),
+      finishReason,
+      usage,
     };
   }
 }
