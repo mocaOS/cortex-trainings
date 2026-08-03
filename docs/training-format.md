@@ -14,15 +14,19 @@ screen, then the final check and a summary. Header carries level badges and an X
 progress bar tracks position through the whole unit.
 
 - **Media screen** — the level's video (autoplay, controls, a "sound on" hint, skippable) or its
-  image, plus the level's key takeaway. The continue button pulses once the video ends.
+  image, plus the level's key takeaway. The continue button pulses once the video ends. Every
+  video carries closed captions (a WebVTT track built from the voiceover transcription the
+  pipeline already has) — off by default, toggled through the native player controls. When
+  autoplay is blocked (no user gesture yet, e.g. a reload straight into a media screen), the
+  hint switches to "press play" instead of pretending sound is on.
 - **Interaction screen** — the level's exercise; must be completed to advance. Videos are
   skippable, interactions are not.
 - **Final check** — questions **and** answer order shuffled, wrong answers explained.
 - **Summary** — XP total, final-check score, all key takeaways as a cheat sheet, and a print
   stylesheet so the cheat sheet prints on its own.
 
-Progress lives in `localStorage`, keyed per training: reload resumes where you were, and a reset
-starts over.
+Progress lives in `localStorage`, keyed by the project id (titles collide between trainings):
+reload resumes where you were, and a reset starts over.
 
 ## Interaction types
 
@@ -73,6 +77,10 @@ template.
 Full points for a first-attempt correct answer, half for a second attempt, plus 25 for completing
 a level. **An interaction's `xp` is the budget for the whole interaction**, divided across its
 questions — not awarded per question.
+
+Each interaction awards XP **once**: resolved interactions are recorded in the saved state
+(`answers`), and replaying a level after going back to the start earns nothing — without that,
+home → replay farms the interaction XP indefinitely.
 
 ## Language
 

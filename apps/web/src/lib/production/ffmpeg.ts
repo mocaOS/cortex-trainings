@@ -262,6 +262,37 @@ export async function webmToMp4(webm: string, out: string): Promise<void> {
   ]);
 }
 
+export async function probeAudio(
+  file: string,
+): Promise<{ channels: number; bitRate: number } | null> {
+  const { stdout } = await exec('ffprobe', [
+    '-v', 'error',
+    '-select_streams', 'a:0',
+    '-show_entries', 'stream=channels,bit_rate',
+    '-of', 'csv=p=0',
+    file,
+  ]);
+  const line = stdout.trim();
+  if (!line) return null;
+  const [channels, bitRate] = line.split(',').map(Number);
+  return { channels: channels || 0, bitRate: bitRate || 0 };
+}
+
+/**
+ * Re-encode only the audio track to voiceover-grade mono AAC, copying the video stream.
+ * The HyperFrames CLI muxes its own audio at ~180 kbps stereo — on a speech-only track
+ * that is nearly half the file, and it lands base64-inflated in the training.
+ */
+export async function slimEmbedAudio(video: string, out: string): Promise<void> {
+  await ff([
+    '-i', video,
+    '-c:v', 'copy',
+    '-c:a', 'aac', '-b:a', '96k', '-ac', '1',
+    '-movflags', '+faststart',
+    out,
+  ]);
+}
+
 /** Downscale an embedded copy if the master is too large. */
 export async function compressForEmbed(video: string, out: string): Promise<void> {
   await ff([

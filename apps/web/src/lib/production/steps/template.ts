@@ -5,12 +5,16 @@ export interface TrainingLevel {
   title: string;
   keyTakeaway: string;
   video: string | null; // data URL
+  /** WebVTT data URL built from the voiceover transcription; null when there is no video. */
+  captions: string | null;
   image: string | null; // data URL
   /** null when the level has no interaction of its own — see PlanLevel.interaction. */
   interaction: PlanInteraction | null;
 }
 
 export interface TrainingData {
+  /** Project id — the stable localStorage key; titles collide between trainings. */
+  id: string;
   title: string;
   language: string;
   accent: string;
@@ -49,6 +53,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     matchCheck: 'Auswertung',
     matchRemaining: 'noch offen',
     matchYourAnswer: 'deine Zuordnung',
+    captions: 'Untertitel',
+    pressPlay: 'Tippe auf Play, um das Video zu starten.',
   },
   en: {
     start: 'Start training',
@@ -78,6 +84,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     matchCheck: 'Results',
     matchRemaining: 'still open',
     matchYourAnswer: 'your answer',
+    captions: 'Captions',
+    pressPlay: 'Press play to start the video.',
   },
 };
 
@@ -159,6 +167,11 @@ export function trainingHtml(data: TrainingData): string {
   input[type=range] { width:100%; accent-color:var(--accent); }
   ol.summary { padding-left:22px; } ol.summary li { margin-bottom:10px; }
   .result-big { font-size:44px; font-weight:800; color:var(--accent); }
+  @media (prefers-reduced-motion: reduce) {
+    .screen.active { animation:none; }
+    .btn.pulse { animation:none; }
+    .progress > div { transition:none; }
+  }
   @media print {
     body { background:#fff; color:#000; }
     header, .no-print { display:none !important; }
@@ -189,9 +202,15 @@ homeBtn.textContent = '← ' + T.backToStart;
 homeBtn.onclick = () => go(0);
 document.querySelector('.xp').innerHTML = '<span id="xp">0</span> ' + T.xp;
 
-const KEY = 'cortex-training-' + DATA.title.slice(0,40);
+const KEY = 'cortex-training-' + (DATA.id || DATA.title.slice(0,40));
 let state = { screen: 0, xp: 0, unlocked: 0, answers: {} };
 try { const saved = JSON.parse(localStorage.getItem(KEY)); if (saved && typeof saved.screen === 'number') state = saved; } catch {}
+if (!state.answers) state.answers = {};
+/* answers['l<i>'] / answers.final mark a resolved interaction: XP is only awarded the first
+   time, otherwise going home and replaying a level farms the interaction XP indefinitely. */
+function answeredKey(li){ return li<0 ? 'final' : 'l'+li; }
+function markAnswered(li){ state.answers[answeredKey(li)] = 1; save(); }
+function isAnswered(li){ return !!state.answers[answeredKey(li)]; }
 
 /* Screen list: 0=start, per level: media(l), interaction(l), then finalCheck, summary */
 const screens = [{kind:'start'}];
@@ -242,6 +261,8 @@ function renderStart(el){
     + '<button class="btn primary" id="btn-start"></button>'
     + (state.screen>0||state.unlocked>0 ? '<button class="btn" id="btn-reset">'+T.restart+'</button>' : '')
     + '</div>';
+  const hi = el.querySelector('.hero');
+  if (hi) hi.alt = DATA.title;
   const started = state.unlocked>0 || Object.keys(state.answers).length>0;
   el.querySelector('#btn-start').textContent = started ? T.resume : T.start;
   el.querySelector('#btn-start').onclick = ()=> go(started && state.lastScreen ? state.lastScreen : 1);
@@ -253,9 +274,18 @@ function renderMedia(el, li){
   const lv = DATA.levels[li];
   el.innerHTML = '<h2>'+T.level+' '+(li+1)+' — '+esc(lv.title)+'</h2>';
   if (lv.video) {
-    const v=document.createElement('video'); v.src=lv.video; v.controls=true; v.autoplay=true; v.playsInline=true;
+    const v=document.createElement('video'); v.src=lv.video; v.controls=true; v.playsInline=true;
+    if (lv.captions){
+      const tr=document.createElement('track');
+      tr.kind='captions'; tr.label=T.captions; tr.srclang=document.documentElement.lang; tr.src=lv.captions;
+      v.appendChild(tr);
+    }
     el.appendChild(v);
     const hint=document.createElement('p'); hint.className='hint'; hint.textContent='🔊 '+T.soundOn; el.appendChild(hint);
+    /* Autoplay with sound is blocked without a user gesture — e.g. a reload straight into this
+       screen. The controls still work; the hint just has to say so instead of "sound on". */
+    const played=v.play();
+    if (played && played.catch) played.catch(()=>{ hint.textContent='▶ '+T.pressPlay; });
     const row=document.createElement('div'); row.style.marginTop='16px';
     const btn=document.createElement('button'); btn.className='btn primary'; btn.textContent=T.continue;
     v.onended=()=>btn.classList.add('pulse');
@@ -264,7 +294,7 @@ function renderMedia(el, li){
     btn.onclick=()=>{ v.pause(); nextFromMedia(li); };
     row.appendChild(btn); row.appendChild(skip); el.appendChild(row);
   } else {
-    if (lv.image) { const img=document.createElement('img'); img.className='ctx'; img.src=lv.image; el.appendChild(img); }
+    if (lv.image) { const img=document.createElement('img'); img.className='ctx'; img.src=lv.image; img.alt=lv.title; el.appendChild(img); }
     const btn=document.createElement('button'); btn.className='btn primary'; btn.textContent=T.continue;
     btn.onclick=()=>nextFromMedia(li); el.appendChild(btn);
   }
@@ -278,8 +308,11 @@ function nextFromMedia(li){
   state.lastScreen=state.screen+1; go(state.screen+1);
 }
 
-function completeLevel(li, earned){
-  if (li>=0 && li+1>state.unlocked){ state.unlocked=li+1; addXp(25); }
+function completeLevel(li){
+  if (li>=0){
+    if (li+1>state.unlocked){ state.unlocked=li+1; addXp(25); }
+    markAnswered(li);
+  }
   state.lastScreen = state.screen+1;
   save();
   go(state.screen+1);
@@ -306,7 +339,7 @@ function renderInteraction(el, inter, li){
     + '<p class="hint">'+esc(inter.instruction)+'</p>';
   const lv = li>=0 ? DATA.levels[li] : null;
   if (lv && lv.image && !lv.video) { /* image already shown on media screen */ }
-  else if (lv && lv.image && lv.video) { const img=document.createElement('img'); img.className='ctx'; img.src=lv.image; el.appendChild(img); }
+  else if (lv && lv.image && lv.video) { const img=document.createElement('img'); img.className='ctx'; img.src=lv.image; img.alt=lv.title; el.appendChild(img); }
 
   if (inter.kind==='slider') return renderSlider(el, inter, li);
   if (inter.kind==='sort_order') return renderSort(el, inter, li);
@@ -329,7 +362,8 @@ function renderSlider(el, inter, li){
   });
   const row=document.createElement('div'); row.style.marginTop='16px';
   const btn=document.createElement('button'); btn.className='btn primary'; btn.textContent=T.continue;
-  btn.onclick=()=>{ addXp(inter.xp||10); completeLevel(li); };
+  const replay=isAnswered(li);
+  btn.onclick=()=>{ if(!replay) addXp(inter.xp||10); completeLevel(li); };
   row.appendChild(btn); el.appendChild(row);
 }
 
@@ -340,7 +374,10 @@ function renderSort(el, inter, li){
   card.innerHTML='<p><strong>'+esc(q.text||inter.title)+'</strong></p><p class="hint">'+T.sortHint+'</p>';
   const wrap=document.createElement('div'); wrap.className='options';
   let picked=[]; let attempt=0;
-  const shuffled = shuffle(correct);
+  const replay=isAnswered(li);
+  /* A shuffle that lands on the original order hands the learner a pre-solved exercise. */
+  let shuffled = shuffle(correct);
+  for (let g=0; g<10 && correct.length>1 && shuffled.every(([,o],i)=>o===i); g++) shuffled = shuffle(correct);
   shuffled.forEach(([text, origIdx])=>{
     const b=document.createElement('button'); b.className='opt'; b.textContent=text; b.dataset.orig=origIdx;
     b.onclick=()=>{
@@ -351,14 +388,14 @@ function renderSort(el, inter, li){
     };
     wrap.appendChild(b);
   });
-  const fb=document.createElement('div'); fb.className='feedback';
+  const fb=document.createElement('div'); fb.className='feedback'; fb.setAttribute('aria-live','polite');
   card.appendChild(wrap); card.appendChild(fb); el.appendChild(card);
   function checkSort(){
     const ok = picked.every((v,i)=>v===i);
     fb.classList.add('show', ok?'good':'poor');
     if (ok){
       fb.innerHTML='<strong>'+T.correct+'</strong> '+esc(q.explanation||'');
-      addXp(attempt===0?(inter.xp||20):Math.ceil((inter.xp||20)/2));
+      if (!replay) addXp(attempt===0?(inter.xp||20):Math.ceil((inter.xp||20)/2));
       addContinue(card, li);
     } else {
       attempt++;
@@ -382,6 +419,7 @@ function renderMatch(el, inter, li){
   const cats = (inter.questions[0] && inter.questions[0].options) || [];
   const assigned = new Map();       // item index -> category index
   let selected = null, attempt = 0;
+  const replay = isAnswered(li);
 
   const card=document.createElement('div'); card.className='card';
   card.innerHTML='<p class="hint">'+T.matchHint+'</p>';
@@ -389,7 +427,7 @@ function renderMatch(el, inter, li){
   const itemCol=document.createElement('div'); itemCol.className='match-items';
   const catCol=document.createElement('div'); catCol.className='match-cats';
   wrap.appendChild(itemCol); wrap.appendChild(catCol);
-  const fb=document.createElement('div'); fb.className='feedback';
+  const fb=document.createElement('div'); fb.className='feedback'; fb.setAttribute('aria-live','polite');
   card.appendChild(wrap); card.appendChild(fb); el.appendChild(card);
 
   function draw(){
@@ -410,7 +448,7 @@ function renderMatch(el, inter, li){
       box.appendChild(h);
       items.filter(it=>assigned.get(it.i)===ci).forEach(it=>{
         const chip=document.createElement('button'); chip.className='chip-item placed';
-        chip.textContent=it.text;
+        chip.textContent=it.text; chip.dataset.item=it.i;
         chip.onclick=()=>{ assigned.delete(it.i); selected=null; draw(); };
         box.appendChild(chip);
       });
@@ -420,6 +458,9 @@ function renderMatch(el, inter, li){
         assigned.set(selected, ci); selected=null; draw();
         if (assigned.size===items.length) evaluate();
       };
+      /* The category box is a div, so give keyboard users the same tap-to-assign path. */
+      box.tabIndex=0; box.setAttribute('role','button'); box.setAttribute('aria-label',cat);
+      box.onkeydown=(e)=>{ if (e.key==='Enter'||e.key===' '){ e.preventDefault(); box.onclick(e); } };
       catCol.appendChild(box);
     });
   }
@@ -430,7 +471,7 @@ function renderMatch(el, inter, li){
     // Mark each placed chip, so a learner sees WHICH pairing was wrong.
     catCol.querySelectorAll('.cat').forEach((box,ci)=>{
       box.querySelectorAll('.chip-item.placed').forEach(chip=>{
-        const it = items.find(x=>x.text===chip.textContent);
+        const it = items[Number(chip.dataset.item)];
         if (it) chip.classList.add(it.correct===ci ? 'ok' : 'bad');
       });
     });
@@ -439,7 +480,7 @@ function renderMatch(el, inter, li){
     const resolution = (inter.questions.find(q=>q.explanation && q.explanation.trim())||{}).explanation || '';
     fb.innerHTML='<strong>'+(ok?T.correct:T.wrong)+'</strong> '+right.length+'/'+items.length+'. '+esc(resolution);
     if (ok){
-      addXp(attempt===0?(inter.xp||20):Math.ceil((inter.xp||20)/2));
+      if (!replay) addXp(attempt===0?(inter.xp||20):Math.ceil((inter.xp||20)/2));
       addContinue(card, li);
     } else if (attempt>=1){
       addContinue(card, li);
@@ -465,6 +506,7 @@ function renderQuestions(el, inter, li){
   /* inter.xp is the budget for the whole interaction, not per question. */
   const perQ = Math.max(1, Math.round((inter.xp||10)/Math.max(1,qs.length)));
   let idx=0, correctCount=0;
+  const replay=isAnswered(li);
   const card=document.createElement('div'); card.className='card';
   el.appendChild(card);
   function show(){
@@ -480,7 +522,7 @@ function renderQuestions(el, inter, li){
           b.classList.add('ok');
           wrap.querySelectorAll('.opt').forEach(o=>o.disabled=true);
           correctCount++;
-          addXp(attempt===0?perQ:Math.ceil(perQ/2));
+          if (!replay) addXp(attempt===0?perQ:Math.ceil(perQ/2));
           fb.className='feedback show good';
           fb.innerHTML='<strong>'+T.correct+'</strong> '+esc(q.explanation||'');
           next.style.display='inline-block';
@@ -498,7 +540,7 @@ function renderQuestions(el, inter, li){
       b.dataset.orig=orig;
       wrap.appendChild(b);
     });
-    const fb=document.createElement('div'); fb.className='feedback';
+    const fb=document.createElement('div'); fb.className='feedback'; fb.setAttribute('aria-live','polite');
     const next=document.createElement('button'); next.className='btn primary'; next.style.display='none'; next.style.marginTop='14px';
     next.textContent=T.continue;
     next.onclick=()=>{ idx++; if(idx<qs.length) show(); else finish(); };
@@ -506,7 +548,8 @@ function renderQuestions(el, inter, li){
   }
   function finish(){
     if (isFinal){
-      state.finalResult=[correctCount,qs.length]; save();
+      state.finalResult=[correctCount,qs.length];
+      markAnswered(li);
       go(state.screen+1);
     } else completeLevel(li);
   }

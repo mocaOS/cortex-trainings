@@ -287,7 +287,12 @@ were visible.
 
 Everything is embedded as Base64 data URIs into a single HTML file. Clips over ~5.5 MB get a
 downscaled embed copy (1280 wide) while the 1080p masters stay on disk for social, LMS, or
-presentation reuse. The step warns if the result exceeds 50 MB.
+presentation reuse. Smaller clips whose audio track is stereo or above ~112 kbps (the
+HyperFrames renderer muxes ~180 kbps stereo) get an embed copy with the audio re-encoded to
+mono 96k — video stream copied untouched. Level images and the hero are embedded from a
+recompressed 1280px copy, and each level with a video gets a WebVTT caption track built from
+the voiceover transcription in `media/vo/level<i>.json` (the voiceover sits at t=0 in every
+final video, so segment times are video times). The step warns if the result exceeds 50 MB.
 
 Cost: zero, seconds to run.
 
