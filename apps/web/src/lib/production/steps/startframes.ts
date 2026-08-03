@@ -102,12 +102,14 @@ function ordinalSuffix(n: number): string {
 function framePrompt(opts: {
   shotPrompt: string;
   styleBlock: string;
+  /** The plan's own description of the guide — it may well not be a figure. */
+  guideCharacter: string;
   characterCount: number;
   styleCount: number;
   /** True when input image 1 is the previous clip's last frame. */
   continues: boolean;
 }): string {
-  const { shotPrompt, styleBlock, characterCount, styleCount, continues } = opts;
+  const { shotPrompt, styleBlock, guideCharacter, characterCount, styleCount, continues } = opts;
   const lines: string[] = [];
   // Slot 1 is the continuity frame when there is one; everything else shifts down.
   let slot = 1;
@@ -128,12 +130,26 @@ function framePrompt(opts: {
   const styleSlot = slot;
 
   if (characterCount > 0) {
+    // The guide is whatever the plan says it is — an orb, an object, a creature, a mannequin. An
+    // earlier version enumerated humanoid features ("same face, same hair, same clothing, any
+    // eyepatch"), which was really a description of one project's character. Against an abstract
+    // guide that reads as an instruction to draw a person: a training whose guide is a floating
+    // orb got a caped human figure kneeling beside it, faithfully rendered, never asked for.
     lines.push(
-      `SUBJECT: the character from ${refRange(characterSlot, characterCount)} — exactly that ` +
-        `character, unmistakably the same design, same face and markings, same hair, same colours, ` +
-        `same clothing and accessories, and any eyepatch, glow or asymmetric detail on the same ` +
-        `side as in the reference. Place the character into the scene, clearly visible and legibly ` +
-        `framed, doing this: ${shotPrompt}`,
+      `SUBJECT: the guide from ${refRange(characterSlot, characterCount)}. What the guide is: ` +
+        `${guideCharacter}\n` +
+        `Reproduce it exactly as the reference shows it — unmistakably the same design, the same ` +
+        `proportions, colours, materials, surface and markings, with any glow or asymmetric detail ` +
+        `on the same side. Do not restyle it, do not substitute something else for it, and do not ` +
+        `give it features it does not have. It appears in this frame exactly as the shot describes: ` +
+        `${shotPrompt}`,
+    );
+    // The frame contains what the shot names and nothing else. Stated separately because the
+    // reference itself is the thing most likely to invite an extra figure into the scene.
+    lines.push(
+      `Add NO people, human figures, faces, hands or bystanders, and no second character of any ` +
+        `kind. The guide above and whatever the shot description explicitly names are the only ` +
+        `subjects in the frame.`,
     );
   } else {
     lines.push(`SUBJECT: ${shotPrompt}`);
@@ -201,6 +217,7 @@ export async function ensureStartFrame(
   const prompt = framePrompt({
     shotPrompt,
     styleBlock,
+    guideCharacter: ctx.plan!.guideCharacter,
     characterCount: characterUrls.length,
     styleCount: styleUrls.length,
     continues,
