@@ -155,13 +155,25 @@ class ProductionRun {
         );
       },
       refimage: async () => {
-        const candidates = await stepRefImage(ctx);
-        await this.patchState({ refCandidates: candidates, refCandidateCount: candidates.length });
-        await this.patchStep('refimage', { status: 'waiting_input', detail: 'pick a candidate' });
-        await this.patchState({ status: 'waiting_input' });
-        const choice = await ctx.waitForInput<number>('ref');
-        await this.patchState({ status: 'running', chosenRef: choice, refCandidates: undefined });
-        await applyRefChoice(ctx, candidates, choice);
+        // The pick can also answer "neither" — regenerate a fresh pair and wait again. Each
+        // round costs real money (~$0.5), which is why it is an explicit user action and not
+        // an automatic retry.
+        for (;;) {
+          const candidates = await stepRefImage(ctx);
+          await this.patchState({ refCandidates: candidates, refCandidateCount: candidates.length });
+          await this.patchStep('refimage', { status: 'waiting_input', detail: 'pick a candidate' });
+          await this.patchState({ status: 'waiting_input' });
+          const choice = await ctx.waitForInput<number | 'regenerate'>('ref');
+          if (choice === 'regenerate') {
+            this.log('refimage', 'both candidates rejected — generating a new pair');
+            await this.patchStep('refimage', { status: 'running', detail: 'regenerating candidates' });
+            await this.patchState({ status: 'running', refCandidates: undefined });
+            continue;
+          }
+          await this.patchState({ status: 'running', chosenRef: choice, refCandidates: undefined });
+          await applyRefChoice(ctx, candidates, choice);
+          break;
+        }
       },
       voiceovers: () => stepVoiceovers(ctx),
       films: async () => {

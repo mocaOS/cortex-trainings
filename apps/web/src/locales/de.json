@@ -70,6 +70,7 @@
   "production.step.images": "Bilder",
   "production.step.assemble": "HTML-Lerneinheit bauen",
   "production.pickRef": "Wähle das Referenzbild der Leitfigur — es verankert die Optik aller Videos. Nimm den Kandidaten OHNE eingebackenen Text.",
+  "production.regenerateRef": "Keiner passt — neues Paar generieren (~0,50 $)",
   "production.confirmVideo": "Videos generieren",
   "production.confirmVideoHint": "Kosten für alle Video-Shots laut Angebot:",
   "production.resume": "Fortsetzen",

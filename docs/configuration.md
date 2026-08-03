@@ -29,6 +29,7 @@ All configuration is environment variables. Copy `.env.example` to `.env` at the
 | `VENICE_TTS_MODEL_EN` | `tts-elevenlabs-turbo-v2-5` | |
 | `VENICE_TTS_VOICE_EN` | `Rachel` | |
 | `TTS_TEMPO` | `1.15` | Applied with ffmpeg `atempo`, **not** the API's `speed` — some models ignore `speed` entirely |
+| `ANIMATION_RENDERER` | unset (legacy) | `hyperframes` switches animation levels to the frame-seeked HyperFrames renderer: deterministic output, ~3× faster than realtime, audio mixed in-render, three layout variants. See [production-pipeline.md](production-pipeline.md) §5. Legacy Playwright recording remains the default until HF has soaked |
 | `TTS_CONCURRENCY` | `3` | Higher values draw HTTP 500s from the speech endpoint |
 | `VENICE_STT_MODEL` | `openai/whisper-large-v3` | Currently unused: timing comes from per-sentence synthesis instead |
 

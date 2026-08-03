@@ -108,6 +108,13 @@ export function ProductionPanel({ dict, projectId }: { dict: Dict; projectId: st
               </button>
             ))}
           </div>
+          <button
+            className="btn"
+            style={{ marginTop: '0.6rem' }}
+            onClick={() => sendInput('ref', 'regenerate')}
+          >
+            {dict['production.regenerateRef']}
+          </button>
         </div>
       )}
 

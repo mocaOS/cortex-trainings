@@ -70,6 +70,7 @@
   "production.step.images": "Images",
   "production.step.assemble": "Build HTML training",
   "production.pickRef": "Pick the guide character reference image — it anchors the look of all videos. Choose the candidate WITHOUT baked-in text.",
+  "production.regenerateRef": "Neither fits — generate a new pair (~$0.50)",
   "production.confirmVideo": "Generate videos",
   "production.confirmVideoHint": "Quoted cost for all video shots:",
   "production.resume": "Resume",

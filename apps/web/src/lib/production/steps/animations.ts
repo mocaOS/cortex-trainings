@@ -6,6 +6,7 @@ import type { PlanAnimationBeat, PlanLevel } from '@cortex-trainings/shared';
 import type { RunContext } from '../runner';
 import { muxVoiceover, webmToMp4 } from '../ffmpeg';
 import { voPath, type VoiceoverInfo } from './voiceovers';
+import { renderHyperframesAnimation, useHyperframes } from './anim-hyperframes';
 
 /* Beat times come from the sentence timeline built during synthesis (exact), so cue matching only
    has to locate the cue within it — and then interpolate, because a segment is not always one
@@ -270,11 +271,17 @@ export async function stepAnimations(ctx: RunContext): Promise<void> {
       'animations',
       `level ${level.index}: ${level.animationBeats.length} beats at [${times.map((t) => t.toFixed(1)).join(', ')}]s`,
     );
-    const silent = path.join(dir, `level${level.index}_silent.mp4`);
-    ctx.setDetail('animations', `level ${level.index}: recording ${Math.ceil(vo.duration + 1)}s scene`);
-    await recordScene(sceneHtml(level, times, plan.accentColor), vo.duration + 1, silent);
-    await muxVoiceover(silent, vo.file, finalFile);
-    await fs.rm(silent, { force: true });
+    if (useHyperframes()) {
+      // Frame-seeked render with the audio mixed in — no recording, no separate mux.
+      ctx.setDetail('animations', `level ${level.index}: rendering (hyperframes)`);
+      await renderHyperframesAnimation(ctx, level, times, vo, finalFile);
+    } else {
+      const silent = path.join(dir, `level${level.index}_silent.mp4`);
+      ctx.setDetail('animations', `level ${level.index}: recording ${Math.ceil(vo.duration + 1)}s scene`);
+      await recordScene(sceneHtml(level, times, plan.accentColor), vo.duration + 1, silent);
+      await muxVoiceover(silent, vo.file, finalFile);
+      await fs.rm(silent, { force: true });
+    }
     done++;
     ctx.setDetail('animations', `${done}/${levels.length} done`);
     ctx.log('animations', `level ${level.index}: rendered + voiced`);

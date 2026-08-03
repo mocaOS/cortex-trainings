@@ -48,7 +48,12 @@ description of it. The pick flow is identical.
 Both candidates stay on disk (`media/ref-candidates/`) and remain viewable in the panel
 afterwards, so you can compare the finished videos against what you chose.
 
-Cost: ~$0.55 for the pair.
+**If neither candidate fits, the pick screen can regenerate**: a button below the pair generates a
+fresh one and waits again, as many rounds as needed. Each round is an explicit user action rather
+than an automatic retry, because each round costs real money. The latest pair replaces the
+previous one on disk.
+
+Cost: ~$0.55 per pair.
 
 ## 3. Voiceovers
 
@@ -198,14 +203,45 @@ budget by an order of magnitude.
 ## 5. Animations
 
 For levels marked ANIMATION. A 1920×1080 scene — dark background, accent colour, title, and the
-beats — is rendered by Chromium with CSS animation delays taken from the sentence timeline, then
-converted to MP4 and muxed with the voiceover.
+beats — timed off the sentence timeline. This is where concepts, lists, rules, processes and
+numbers belong: the text is razor-sharp in any language, which generative video cannot do, and it
+costs nothing.
 
-This is where concepts, lists, rules, processes and numbers belong: the text is razor-sharp in
-any language, which generative video cannot do, and it costs nothing. A 40-second animation is
-~1.1 MB versus ~20 MB for film.
+Two renderers exist, switched by `ANIMATION_RENDERER`:
 
-Cost: zero. About 45 seconds per scene.
+**`hyperframes`** — a [HyperFrames](https://hyperframes.heygen.com) composition (Apache-2.0,
+renders locally, no per-render fees) rendered by *seeking* every frame: a paused GSAP timeline is
+positioned at `floor(frame)/fps` and captured atomically, so the same input yields the same video
+— unlike realtime recording, where frame timing depends on machine load. Audio is mixed in-render
+(no separate mux), and a 35s scene renders in ~13s instead of ≥35s. The pinned `hyperframes`
+package and a vendored GSAP (`apps/web/anim-assets/`) make renders fully offline; `--crf 29` keeps
+a level at ~1.5 MB (the default preset produced ~5 MB, and every megabyte lands base64-inflated in
+the training file). Generated projects live in `media/anim/hf/level<N>/` for inspection and are
+never embedded.
+
+Levels get one of three **layout archetypes** over one shared design system, because one layout
+repeated across adjacent levels reads as a template, not a design:
+
+| Variant | Staging | Assigned to |
+|---|---|---|
+| `focal-rail` | beat text stages large right-of-centre, docks into a left checklist rail | rotation |
+| `kinetic-center` | beat text slams full-centre, shrinks into a pill row under the title | rotation |
+| `step-flow` | node path across the lower third; each beat lights the next node | `sort_order` levels always, else rotation |
+
+Assignment is deterministic — interaction kind first, then rotation by position among the
+animation levels — never random: a re-render must produce the same video, and two adjacent levels
+must not share a layout by accident.
+
+Two GSAP-under-seek rules the compositions obey, both found the hard way: selectors bind when a
+tween is *created*, so all beat blocks are pre-built before the timeline is constructed (content
+injected mid-timeline never animates); and a `tl.set(...)` at position 0 does not render at frame
+0, so initial hidden states use `gsap.set(...)` outside the timeline.
+
+**legacy** (default until HyperFrames has soaked) — Chromium records the scene in realtime via
+Playwright, converts webm→MP4, then muxes the voiceover. One fixed layout. ~45 seconds per scene.
+
+Cost: zero either way. A 40-second animation is ~1.5 MB (hyperframes) / ~1.1 MB (legacy) versus
+~20 MB for film.
 
 ## 6. Images
 

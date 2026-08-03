@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@cortex-trainings/shared": "*",
+    "hyperframes": "0.7.90",
     "next": "^15.3.0",
     "playwright": "^1.62.1",
     "react": "^19.0.0",
