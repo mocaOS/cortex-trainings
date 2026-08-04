@@ -1,6 +1,6 @@
 # Cortex Trainings
 
-Standalone web application that turns domain knowledge from a [Cortex](https://docs.cortex.eco)
+Standalone web application that turns domain knowledge from a [Cortex](https://github.com/mocaOS/cortex-app)
 instance into interactive, offline-capable HTML training units, with
 [Venice.ai](https://docs.venice.ai) as the AI provider.
 
