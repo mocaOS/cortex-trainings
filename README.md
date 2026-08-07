@@ -4,6 +4,14 @@ Standalone web application that turns domain knowledge from a [Cortex](https://g
 instance into interactive, offline-capable HTML training units, with
 [Venice.ai](https://docs.venice.ai) as the AI provider.
 
+> **Beta** — open source and ready to self-host today, but not yet launched on the
+> [Cortex cloud offering](https://cortex.eco). The fastest way to run it: tell your coding
+> agent (Claude Code, Codex, opencode, Hermes, …) to spin up Cortex Trainings and point it at
+> [cortexskills.org](https://cortexskills.org) — it finds full setup context there and helps
+> you connect the app to your Cortex instance. The only thing you provide beyond that is a
+> [Venice.ai](https://venice.ai) API key, which accesses and pays for the media generation
+> models (MiniMax H3 and others).
+
 **▶ [Try a training it produced](https://cortex.eco/demo/cortex-trainings.html)** — a real
 7-level course about Cortex itself, generated from a Cortex instance. One HTML file, runs offline.
 
